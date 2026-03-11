@@ -1,5 +1,26 @@
 import { useState, useRef, useEffect } from "react";
 
+
+// ── Gemini API helper ──────────────────────────────────────────
+async function callGemini(apiKey, prompt, maxTokens) {
+  var res = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: maxTokens || 4000 }
+      })
+    }
+  );
+  var data = await res.json();
+  if (data.error) throw new Error(data.error.message || "Gemini APIエラー");
+  var text = ((data.candidates || [])[0] || {});
+  text = ((text.content || {}).parts || [])[0] || {};
+  return text.text || "";
+}
+
 // ── localStorage storage shim ─────────────────────────────────
 const localStore = {
   get: async function(key) {
@@ -825,7 +846,7 @@ export default function App() {
   async function generateKarte() {
     var text = (transcript || manualText).trim();
     if (!text) { setError("文字起こしテキストがありません"); return; }
-    if (!apiKey) { setError("設定タブでAnthropicのAPIキーを入力してください"); return; }
+    if (!apiKey) { setError("設定タブでGeminiのAPIキーを入力してください"); return; }
     setLoading(true); setError(""); setKartes(null); setSavedIds({});
 
     // Build context from filled slots
@@ -845,14 +866,7 @@ export default function App() {
     var prompt = "あなたはジムのカルテ作成AIです。以下のトレーニングセッションの文字起こしから、会員ごとのトレーニング記録をJSONで抽出してください。" + memberHint + "\n\nルール:\n- 参加会員リストがある場合、名前の表記ゆれを正式名称に統一し会員番号も付与する\n- 【最重要】実施した種目はすべてexercisesに入れる。プランク・サイドプランク・マウンテンクライマー・体幹トレーニング・ストレッチ等も全て種目として記録する\n- notesには怪我・体調・フォーム指導・特記事項のみ記録する。種目をnotesに入れてはいけない\n- セット途中で重量・回数が変わったら各セットに反映する\n- 時間系種目（プランク等）はweightをnull、repsを「60秒」のような文字列で記録する\n- weightはkg数値（不明はnull）。ドロップセット・立位/座位の連続は reps を 立位15→座位15 のような文字列で表現し1セットとして記録する\n- 音声に日時・日付・時刻が含まれていれば session_datetime に 2026/03/10 09:00 形式で入れる。なければnull\n\n文字起こし:\n\"\"\"\n" + text + "\n\"\"\"\n\n以下のJSONのみ返してください:\n" + jsonFmt;
 
     try {
-      var res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-allow-browser": "true" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4000, messages: [{ role: "user", content: prompt }] }),
-      });
-      var data = await res.json();
-      if (data.error) throw new Error(data.error.message || "APIエラー");
-      var raw = (data.content || []).map(function(c){ return c.text || ""; }).join("");
+      var raw = await callGemini(apiKey, prompt, 4000);
       // Strip markdown code fences (Safari-safe string approach)
       while (raw.indexOf("```json") !== -1) raw = raw.split("```json").join("");
       while (raw.indexOf("```") !== -1) raw = raw.split("```").join("");
@@ -884,7 +898,7 @@ export default function App() {
     if (activeSlots.length === 0) { setPrepError("会員番号を1つ以上入力してください"); return; }
     var noparts = activeSlots.filter(function(s){ return s.parts.length === 0; });
     if (noparts.length > 0) { setPrepError("部位が選択されていないスロットがあります"); return; }
-    if (!apiKey) { setPrepError("設定タブでAnthropicのAPIキーを入力してください"); return; }
+    if (!apiKey) { setPrepError("設定タブでGeminiのAPIキーを入力してください"); return; }
     setPrepLoading(true); setPrepError(""); setPrepResult(null);
 
     var memberData = activeSlots.map(function(slot) {
@@ -936,17 +950,17 @@ export default function App() {
     var prompt2 = "あなたはパーソナルトレーナーのAIアシスタントです。\n\n" + memberData + exListHint + warmupHint + "\n\n指示:\n- 各会員の「本日の部位」に合った種目を種目リストの中から選ぶ\n- 【最重要】exercisesのnameは種目リストの種目名を一字一句そのままコピーする。絶対に変更・追記しない\n- 【30分制約】種目リストの「所用時間」を合計して30分以内に必ず収める。超えそうなら種目数を減らす\n- セット数・回数・インターバル・時間はJSONに含めない（システムが自動で設定する）\n- noteには「重量の引き継ぎ（前回○kg→今回○kg）」「⚠️ 痛み・制限の引き継ぎ」のみ記載\n- 【重量引き継ぎ】履歴に同じ種目がある場合その重量を引き継ぐ。メモに「次回○kg」があれば優先\n- 【痛み引き継ぎ】メモに痛み・違和感・注意事項があればnoteに「⚠️ ○○に注意」を記載\n- 【種目の並び順】必ず以下の順序で構成すること：①静的ストレッチ（1〜2種）→②モビリティ（2〜3種）→③スタビリティ（1〜2種）→④ウエイトトレーニング（メイン2〜4種）\n- ゴール種目別ウォームアップ流れ表がある場合はそれを参考に、最終的なウエイト種目に向けて準備種目を選ぶ\n\n以下のJSONのみ返してください:\n" + jsonFmt2;
 
     try {
-      var res2 = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 4000, messages: [{ role: "user", content: prompt2 }] }),
-      });
-      var data2 = await res2.json();
-      var raw2 = (data2.content || []).map(function(c){ return c.text || ""; }).join("");
+      var raw2 = await callGemini(apiKey, prompt2, 6000);
+      while (raw2.indexOf("```json") !== -1) raw2 = raw2.split("```json").join("");
+      while (raw2.indexOf("```") !== -1) raw2 = raw2.split("```").join("");
+      raw2 = raw2.trim();
       var start2 = raw2.indexOf("{");
       var end2 = raw2.lastIndexOf("}");
       if (start2 < 0 || end2 < 0) throw new Error("JSONが見つかりません");
-      var parsed2 = JSON.parse(raw2.slice(start2, end2 + 1));
+      var jsonStr2 = raw2.slice(start2, end2 + 1);
+      var parsed2;
+      try { parsed2 = JSON.parse(jsonStr2); }
+      catch(pe2) { jsonStr2 = jsonStr2.replace(/,\s*([}\]])/g, "$1"); parsed2 = JSON.parse(jsonStr2); }
 
       // Helper: parse duration string to seconds
       function parseDurSec(s) {
@@ -1297,17 +1311,17 @@ export default function App() {
             <>
               <div className="panel">
                 <div className="panel-header">
-                  <div className="panel-title">🔑 Anthropic APIキー</div>
+                  <div className="panel-title">🔑 Gemini APIキー</div>
                 </div>
                 <div className="panel-body">
                   <div className="label" style={{marginBottom:6}}>APIキー</div>
                   <input type="password" value={apiKey}
                     onChange={function(e){ setApiKey(e.target.value); localStorage.setItem("tanifit:apikey", e.target.value); }}
-                    placeholder="sk-ant-api03-..."
+                    placeholder="AIza..."
                     style={{marginBottom:8, fontFamily:"'DM Mono',monospace"}}
                   />
                   <div className="hint">
-                    Anthropic Console（console.anthropic.com）でAPIキーを取得してください。<br/>
+                    Google AI Studio（aistudio.google.com）でAPIキーを無料取得できます。<br/>
                     キーはこのブラウザのみに保存されます。
                   </div>
                   {apiKey && <div className="success-box" style={{marginTop:10,marginBottom:0}}>✓ APIキー設定済み（{apiKey.slice(0,12)}...）</div>}
