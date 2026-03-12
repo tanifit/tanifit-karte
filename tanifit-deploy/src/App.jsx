@@ -1001,15 +1001,27 @@ export default function App() {
         }).filter(Boolean);
 
         // Step2: apply 30-min hard cap
-        var capped = [];
-        var totalSec = 0;
-        for (var i = 0; i < resolved.length; i++) {
-          var dur = parseDurSec(resolved[i].master.duration);
-          if (totalSec + dur <= 1800 || capped.length === 0) {
-            totalSec += dur;
-            capped.push(resolved[i]);
+        // ウエイトトレーニングを必ず含める：先にウエイトを確保してから残り時間でウォームアップを詰める
+        var weightItems = resolved.filter(function(r){ return r.master.category === "ウエイトトレーニング"; });
+        var warmupItems = resolved.filter(function(r){ return r.master.category !== "ウエイトトレーニング"; });
+        
+        // ウエイト最大2種目を確保
+        var reservedWeight = weightItems.slice(0, 2);
+        var reservedSec = reservedWeight.reduce(function(acc, r){ return acc + parseDurSec(r.master.duration); }, 0);
+        var remainSec = Math.max(1800 - reservedSec, 0);
+        
+        // 残り時間でウォームアップを詰める
+        var warmupCapped = [];
+        var warmupSec = 0;
+        for (var i = 0; i < warmupItems.length; i++) {
+          var dur = parseDurSec(warmupItems[i].master.duration);
+          if (warmupSec + dur <= remainSec) {
+            warmupSec += dur;
+            warmupCapped.push(warmupItems[i]);
           }
         }
+        var capped = warmupCapped.concat(reservedWeight);
+        var totalSec = warmupSec + reservedSec;
 
         // Step3: build final exercises with elapsed time
         var runSec = 0;
