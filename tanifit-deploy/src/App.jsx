@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 // ── Gemini API helper ──────────────────────────────────────────
 async function callGemini(apiKey, prompt, maxTokens) {
   var res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-001:generateContent?key=" + apiKey,
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + apiKey,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
