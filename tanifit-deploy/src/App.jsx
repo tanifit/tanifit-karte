@@ -970,7 +970,15 @@ export default function App() {
         jsonStr = jsonStr.replace(/,\s*([}\]])/g, "$1");
         parsed = JSON.parse(jsonStr);
       }
-      setKartes(parsed.kartes || []);
+      // member_idが一致する会員の正式名称で上書き
+      var fixedKartes = (parsed.kartes || []).map(function(k) {
+        if (k.member_id) {
+          var m = members.find(function(m){ return m.id === String(k.member_id); });
+          if (m) return Object.assign({}, k, { name: m.name });
+        }
+        return k;
+      });
+      setKartes(fixedKartes);
       if (parsed.session_datetime && typeof parsed.session_datetime === "string") {
         setSessionDateTime(parsed.session_datetime);
       }
