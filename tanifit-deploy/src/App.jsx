@@ -1432,7 +1432,7 @@ export default function App() {
                           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:2,color:slot.id?"#F07020":"#C4C8D0",minWidth:18}}>{idx+1}</div>
                           {slot.id ? (
                             <>
-                              <span style={{fontSize:13,color:"#ddd",flex:1}}>{member?member.name:"会員#"+slot.id}</span>
+                              <span style={{fontSize:13,color:"#1A1E26",fontWeight:600,flex:1}}>{member?member.name:"会員#"+slot.id}</span>
                               {member&&member.gender&&<span style={{fontSize:10,color:member.gender==="女"?"#e07090":"#5090cc",border:"1px solid",borderColor:member.gender==="女"?"#602040":"#203060",borderRadius:3,padding:"1px 5px"}}>{member.gender}</span>}
                               <div style={{display:"flex",gap:3}}>
                                 {LEVELS.map(function(lv){ return (
