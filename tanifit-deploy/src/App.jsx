@@ -638,7 +638,7 @@ function SuggestCard({ s, history }) {
                 {(sess.karte.exercises || []).map(function(ex, ei) {
                   var setStr = (ex.sets || []).map(function(st, k){ return (st.weight != null ? st.weight + "kg" : "—") + "×" + (st.reps != null ? st.reps + "回" : "—"); }).join("  ");
                   return (
-                    <div key={ei} style={{fontSize:11,color:"#666",padding:"2px 0", display:"flex", gap:10}}>
+                    <div key={ei} style={{fontSize:11,color:"#9AA0AC",fontWeight:500,padding:"2px 0", display:"flex", gap:10}}>
                       <span style={{color:"#888",minWidth:140}}>{ex.name}</span>
                       <span style={{fontFamily:"'DM Mono',monospace",fontSize:10}}>{setStr}</span>
                     </div>
@@ -675,17 +675,17 @@ function SuggestCard({ s, history }) {
                     <div style={{flex:1,height:1,background:"#E4E8EC"}}/>
                   </div>
                 )}
-                <div style={{borderBottom:"1px solid #161616",padding:"9px 0"}}>
+                <div style={{borderBottom:"1px solid #E4E8EC",padding:"9px 0"}}>
                   <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                     <span className="dot amber" style={{flexShrink:0, background: catColor}}/>
                     <ExNameWithImage ex={ex} />
-                    {weight && <span style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:"#ff7a40",fontWeight:600}}>{weight}</span>}
-                    {reps && <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"#e8e4dc"}}>× {reps}</span>}
-                    {numSets > 0 && <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"#555"}}>× {numSets}set</span>}
-                    {ex.interval && <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"#7a9a7a",background:"#0d160d",border:"1px solid #1e3320",borderRadius:3,padding:"1px 7px"}}>⏱ {ex.interval}</span>}
-                    {ex.elapsed && <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#666"}}>計{ex.elapsed}</span>}
+                    {weight && <span style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:"#E06010",fontWeight:700}}>{weight}</span>}
+                    {reps && <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"#1A1E26",fontWeight:600}}>× {reps}</span>}
+                    {numSets > 0 && <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"#5A6270",fontWeight:500}}>× {numSets}set</span>}
+                    {ex.interval && <span style={{fontFamily:"'DM Mono',monospace",fontSize:12,color:"#2A8A6A",background:"#EBF7F2",border:"1px solid #B8E0D0",borderRadius:4,padding:"1px 7px",fontWeight:500}}>⏱ {ex.interval}</span>}
+                    {ex.elapsed && <span style={{fontFamily:"'DM Mono',monospace",fontSize:11,color:"#9AA0AC",fontWeight:500}}>計{ex.elapsed}</span>}
                   </div>
-                  {note && <div style={{fontSize:11,color:"#aa7700",marginTop:4,paddingLeft:13}}>{note}</div>}
+                  {note && <div style={{fontSize:11,color:"#D07010",marginTop:4,paddingLeft:13,fontWeight:500}}>{note}</div>}
                 </div>
               </React.Fragment>
             );
@@ -733,8 +733,8 @@ function HistoryDetail({ karte, onUpdate, onDelete }) {
     <div className="history-detail">
       {editing ? (
         <>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,paddingBottom:8,borderBottom:"1px solid #222"}}>
-            <span style={{fontSize:10,color:"#aa7700",letterSpacing:1}}>✏️ 編集中</span>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,paddingBottom:8,borderBottom:"1px solid #E4E8EC"}}>
+            <span style={{fontSize:10,color:"#D07010",letterSpacing:1,fontWeight:600}}>✏️ 編集中</span>
             <div style={{display:"flex",gap:6}}>
               <button className="edit-btn add" onClick={saveEdit}>✓ 保存</button>
               <button className="edit-btn del" onClick={cancelEdit}>✕ キャンセル</button>
@@ -778,13 +778,13 @@ function HistoryDetail({ karte, onUpdate, onDelete }) {
           {(karte.exercises || []).map(function(ex, i) {
             return (
               <div key={i} style={{marginBottom:8}}>
-                <div style={{fontSize:11,fontWeight:600,color:"#ccc",marginBottom:4}}>{ex.name}</div>
+                <div style={{fontSize:12,fontWeight:600,color:"#1A1E26",marginBottom:4}}>{ex.name}</div>
                 <SetsTable sets={ex.sets} />
               </div>
             );
           })}
           {karte.notes && (
-            <div style={{fontSize:11,color:"#6a9a6a",marginTop:6,background:"#0d160e",padding:"7px 10px",borderRadius:3}}>
+            <div style={{fontSize:11,color:"#2A8A5A",marginTop:6,background:"#F0FAF5",padding:"7px 10px",borderRadius:4,border:"1px solid #B8E8D0"}}>
               📝 {karte.notes}
             </div>
           )}
@@ -794,7 +794,7 @@ function HistoryDetail({ karte, onUpdate, onDelete }) {
               confirmDelete ? (
                 <span style={{display:"flex",alignItems:"center",gap:6}}>
                   <span style={{fontSize:10,color:"#cc5555"}}>本当に削除しますか？</span>
-                  <button className="edit-btn del" onClick={onDelete} style={{background:"#2a0a0a",borderColor:"#aa3333",color:"#cc5555"}}>✓ 削除</button>
+                  <button className="edit-btn del" onClick={onDelete} style={{background:"#FFF0F0",borderColor:"#E05050",color:"#C03030"}}>✓ 削除</button>
                   <button className="edit-btn" onClick={function(){ setConfirmDelete(false); }}>キャンセル</button>
                 </span>
               ) : (
