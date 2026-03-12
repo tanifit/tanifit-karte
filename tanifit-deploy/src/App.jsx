@@ -1,24 +1,28 @@
 import { useState, useRef, useEffect } from "react";
 
 
-// ── Gemini API helper ──────────────────────────────────────────
+// ── Anthropic API helper ──────────────────────────────────────────
 async function callGemini(apiKey, prompt, maxTokens) {
   var res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=" + apiKey,
+    "https://api.anthropic.com/v1/messages",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: maxTokens || 4000 }
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: maxTokens || 4000,
+        messages: [{ role: "user", content: prompt }]
       })
     }
   );
   var data = await res.json();
-  if (data.error) throw new Error(data.error.message || "Gemini APIエラー");
-  var text = ((data.candidates || [])[0] || {});
-  text = ((text.content || {}).parts || [])[0] || {};
-  return text.text || "";
+  if (data.error) throw new Error(data.error.message || "Anthropic APIエラー");
+  return ((data.content || [])[0] || {}).text || "";
 }
 
 // ── localStorage storage shim ─────────────────────────────────
@@ -1318,17 +1322,17 @@ export default function App() {
             <>
               <div className="panel">
                 <div className="panel-header">
-                  <div className="panel-title">🔑 Gemini APIキー</div>
+                  <div className="panel-title">🔑 Anthropic APIキー</div>
                 </div>
                 <div className="panel-body">
                   <div className="label" style={{marginBottom:6}}>APIキー</div>
                   <input type="password" value={apiKey}
                     onChange={function(e){ setApiKey(e.target.value); localStorage.setItem("tanifit:apikey", e.target.value); }}
-                    placeholder="AIza..."
+                    placeholder="sk-ant-..."
                     style={{marginBottom:8, fontFamily:"'DM Mono',monospace"}}
                   />
                   <div className="hint">
-                    Google AI Studio（aistudio.google.com）でAPIキーを無料取得できます。<br/>
+                    Anthropic Console（console.anthropic.com）でAPIキーを取得できます。<br/>
                     キーはこのブラウザのみに保存されます。
                   </div>
                   {apiKey && <div className="success-box" style={{marginTop:10,marginBottom:0}}>✓ APIキー設定済み（{apiKey.slice(0,12)}...）</div>}
