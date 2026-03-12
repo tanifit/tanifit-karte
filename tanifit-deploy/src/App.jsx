@@ -31,18 +31,24 @@ import { getFirestore, doc, getDoc, setDoc, collection, getDocs, onSnapshot } fr
 
 var _db = null;
 var _fbConfigStr = null;
+
+// Firebase config（自動接続）
+var DEFAULT_FB_CONFIG = {"apiKey":"AIzaSyDc8WJqN1Mb2OMpnKUv2YNj7gy7KCCVD4Y","authDomain":"tanifit-karte.firebaseapp.com","projectId":"tanifit-karte","storageBucket":"tanifit-karte.firebasestorage.app","messagingSenderId":"642322165188","appId":"1:642322165188:web:c787470966126d220fc891"};
+
 function getDb() {
   return _db;
 }
 function initFirebase(cfgStr) {
   if (!cfgStr || cfgStr === _fbConfigStr) return;
   try {
-    var cfg = JSON.parse(cfgStr);
+    var cfg = typeof cfgStr === "string" ? JSON.parse(cfgStr) : cfgStr;
     var app = getApps().length ? getApps()[0] : initializeApp(cfg);
     _db = getFirestore(app);
-    _fbConfigStr = cfgStr;
+    _fbConfigStr = typeof cfgStr === "string" ? cfgStr : JSON.stringify(cfgStr);
   } catch(e) { _db = null; }
 }
+// 起動時に自動初期化
+(function(){ try { initFirebase(DEFAULT_FB_CONFIG); } catch(e){} })();
 
 // localStorage fallback（Firebase未設定時）
 const localStore = {
