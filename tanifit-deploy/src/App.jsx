@@ -25,7 +25,26 @@ async function callGemini(apiKey, prompt, maxTokens) {
   return ((data.content || [])[0] || {}).text || "";
 }
 
-// ── localStorage storage shim ─────────────────────────────────
+// ── Firebase ──────────────────────────────────────────────────
+import { initializeApp, getApps } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, onSnapshot } from "firebase/firestore";
+
+var _db = null;
+var _fbConfigStr = null;
+function getDb() {
+  return _db;
+}
+function initFirebase(cfgStr) {
+  if (!cfgStr || cfgStr === _fbConfigStr) return;
+  try {
+    var cfg = JSON.parse(cfgStr);
+    var app = getApps().length ? getApps()[0] : initializeApp(cfg);
+    _db = getFirestore(app);
+    _fbConfigStr = cfgStr;
+  } catch(e) { _db = null; }
+}
+
+// localStorage fallback（Firebase未設定時）
 const localStore = {
   get: async function(key) {
     try { var v = localStorage.getItem(key); return v ? { value: v } : null; } catch(e) { return null; }
@@ -642,6 +661,11 @@ export default function App() {
   var [error, setError] = useState("");
   var [savedIds, setSavedIds] = useState({});
   var [apiKey, setApiKey] = useState(localStorage.getItem("tanifit:apikey") || "");
+  var [fbConfig, setFbConfig] = useState(localStorage.getItem("tanifit:fbconfig") || "");
+  var [isOwner, setIsOwner] = useState(false);
+  var [ownerPinInput, setOwnerPinInput] = useState("");
+  var [ownerPinError, setOwnerPinError] = useState("");
+  var [fbStatus, setFbStatus] = useState("");
 
   // Prep — 4 slots, each has { id, parts[] }
   var PARTS = ["胸", "肩", "背中", "下半身", "腕", "腹筋"];
@@ -704,22 +728,69 @@ export default function App() {
 
   // dateTime is now sessionDateTime (user-editable)
 
+  // Firebase init on fbConfig change
+  useEffect(function() {
+    if (fbConfig) {
+      try { initFirebase(fbConfig); setFbStatus(""); } catch(e) { setFbStatus("Firebaseエラー: " + e.message); }
+    }
+  }, [fbConfig]);
+
   // Load storage
   useEffect(function() {
     (async function() {
-      try {
-        var cfg = await localStore.get("tanifit:config");
-        if (cfg) { var c = JSON.parse(cfg.value); if (c.members) setMembers(c.members); if (c.exerciseList) setExerciseList(c.exerciseList); }
-      } catch(e) {}
-      try {
-        var hist = await localStore.get("tanifit:history");
-        if (hist) setHistory(JSON.parse(hist.value));
-      } catch(e) {}
+      var db = getDb();
+      if (db) {
+        // Firebase から読み込み
+        try {
+          var cfgSnap = await getDoc(doc(db, "tanifit", "config"));
+          if (cfgSnap.exists()) {
+            var c = cfgSnap.data();
+            if (c.members) setMembers(c.members);
+            if (c.exerciseList) setExerciseList(c.exerciseList);
+            if (c.apiKey) { setApiKey(c.apiKey); localStorage.setItem("tanifit:apikey", c.apiKey); }
+          }
+        } catch(e) {}
+        try {
+          var histSnap = await getDocs(collection(db, "tanifit_history"));
+          var h = {};
+          histSnap.forEach(function(d){ h[d.id] = d.data(); });
+          setHistory(h);
+        } catch(e) {}
+      } else {
+        // localStorageフォールバック
+        try {
+          var cfg = await localStore.get("tanifit:config");
+          if (cfg) { var c = JSON.parse(cfg.value); if (c.members) setMembers(c.members); if (c.exerciseList) setExerciseList(c.exerciseList); }
+        } catch(e) {}
+        try {
+          var hist = await localStore.get("tanifit:history");
+          if (hist) setHistory(JSON.parse(hist.value));
+        } catch(e) {}
+      }
     })();
   }, []);
 
   async function saveConfig(updates) {
-    try { await localStore.set("tanifit:config", JSON.stringify(Object.assign({ members, exerciseList }, updates))); } catch(e) {}
+    var merged = Object.assign({ members, exerciseList }, updates);
+    if (apiKey) merged.apiKey = apiKey;
+    var db = getDb();
+    if (db) {
+      try { await setDoc(doc(db, "tanifit", "config"), merged); } catch(e) {}
+    } else {
+      try { await localStore.set("tanifit:config", JSON.stringify(merged)); } catch(e) {}
+    }
+  }
+
+  async function saveHistory(newHistory) {
+    var db = getDb();
+    if (db) {
+      // 変更されたメンバーのみ保存
+      for (var mid in newHistory) {
+        try { await setDoc(doc(db, "tanifit_history", String(mid)), newHistory[mid]); } catch(e) {}
+      }
+    } else {
+      await saveHistory(newHistory);
+    }
   }
 
   // Import CSV
@@ -1059,7 +1130,7 @@ export default function App() {
     newHistory[key].sessions = [{ date: sessionDateTime, karte }].concat(newHistory[key].sessions || []);
     setHistory(newHistory);
     setSavedIds(function(prev){ return Object.assign({}, prev, { [idx]: true }); });
-    try { await localStore.set("tanifit:history", JSON.stringify(newHistory)); } catch(e) {}
+    await saveHistory(newHistory);
   }
 
   async function updateHistorySession(memberKey, si, updatedKarte) {
@@ -1067,7 +1138,7 @@ export default function App() {
     if (newHistory[memberKey] && newHistory[memberKey].sessions[si]) {
       newHistory[memberKey].sessions[si].karte = updatedKarte;
       setHistory(newHistory);
-      try { await localStore.set("tanifit:history", JSON.stringify(newHistory)); } catch(e) {}
+      await saveHistory(newHistory);
     }
   }
 
@@ -1076,7 +1147,7 @@ export default function App() {
     if (newHistory[memberKey]) {
       newHistory[memberKey].sessions.splice(si, 1);
       setHistory(newHistory);
-      try { await localStore.set("tanifit:history", JSON.stringify(newHistory)); } catch(e) {}
+      await saveHistory(newHistory);
     }
   }
 
@@ -1332,6 +1403,58 @@ export default function App() {
           {/* ── SETTINGS ── */}
           {tab === "settings" && (
             <>
+              {/* Firebase設定 */}
+              <div className="panel">
+                <div className="panel-header">
+                  <div className="panel-title">🔥 Firebase設定（全デバイス同期）</div>
+                </div>
+                <div className="panel-body">
+                  <div className="hint" style={{marginBottom:10}}>
+                    Firebase Firestoreを設定すると、会員履歴・種目DB・APIキーが全デバイスで共有されます。<br/>
+                    <a href="https://console.firebase.google.com" target="_blank" style={{color:"#ff7030"}}>console.firebase.google.com</a> でプロジェクトを作成し、設定オブジェクト（JSON）を貼り付けてください。
+                  </div>
+                  <textarea
+                    value={fbConfig}
+                    onChange={function(e){ setFbConfig(e.target.value); localStorage.setItem("tanifit:fbconfig", e.target.value); }}
+                    placeholder={'{"apiKey":"AIza...","authDomain":"xxx.firebaseapp.com","projectId":"xxx","storageBucket":"xxx","messagingSenderId":"xxx","appId":"xxx"}'}
+                    style={{height:80, fontSize:11, fontFamily:"'DM Mono',monospace", marginBottom:8}}
+                  />
+                  {fbStatus && <div className="error-box" style={{marginBottom:8}}>{fbStatus}</div>}
+                  {getDb() && <div className="success-box" style={{marginBottom:8}}>✓ Firebase接続済み</div>}
+
+                  {/* オーナーPIN */}
+                  <div className="label" style={{marginTop:12, marginBottom:6}}>🔐 オーナーPIN（設定の編集権限）</div>
+                  {isOwner ? (
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <div className="success-box" style={{flex:1,marginBottom:0}}>✓ オーナーモード有効</div>
+                      <button className="btn-ghost" style={{fontSize:11}} onClick={function(){ setIsOwner(false); }}>解除</button>
+                    </div>
+                  ) : (
+                    <div style={{display:"flex",gap:8}}>
+                      <input type="password" value={ownerPinInput} onChange={function(e){ setOwnerPinInput(e.target.value); }}
+                        placeholder="PINを入力" style={{flex:1,marginBottom:0}} />
+                      <button className="btn-primary" style={{padding:"8px 14px",fontSize:12}} onClick={async function(){
+                        var db = getDb();
+                        if (!db) { setOwnerPinError("Firebase未設定"); return; }
+                        try {
+                          var pinSnap = await getDoc(doc(db, "tanifit", "owner"));
+                          if (!pinSnap.exists()) {
+                            // 初回設定：このPINをオーナーPINとして登録
+                            await setDoc(doc(db, "tanifit", "owner"), { pin: ownerPinInput });
+                            setIsOwner(true); setOwnerPinError("✓ オーナーPINを新規登録しました");
+                          } else {
+                            if (pinSnap.data().pin === ownerPinInput) { setIsOwner(true); setOwnerPinError(""); }
+                            else { setOwnerPinError("PINが違います"); }
+                          }
+                        } catch(e) { setOwnerPinError("エラー: " + e.message); }
+                      }}>認証</button>
+                    </div>
+                  )}
+                  {ownerPinError && <div style={{fontSize:11,color: ownerPinError.startsWith("✓") ? "#4caf50":"#ff5500",marginTop:4}}>{ownerPinError}</div>}
+                  <div className="hint" style={{marginTop:6}}>オーナーモード時のみ会員リスト・種目DB・APIキーの編集が全デバイスに反映されます</div>
+                </div>
+              </div>
+
               <div className="panel">
                 <div className="panel-header">
                   <div className="panel-title">🔑 Anthropic APIキー</div>
@@ -1339,7 +1462,13 @@ export default function App() {
                 <div className="panel-body">
                   <div className="label" style={{marginBottom:6}}>APIキー</div>
                   <input type="password" value={apiKey}
-                    onChange={function(e){ setApiKey(e.target.value); localStorage.setItem("tanifit:apikey", e.target.value); }}
+                    onChange={function(e){
+                      var k = e.target.value;
+                      setApiKey(k);
+                      localStorage.setItem("tanifit:apikey", k);
+                      // Firebase にも保存（オーナーのみ）
+                      if (isOwner) { saveConfig({ apiKey: k }); }
+                    }}
                     placeholder="sk-ant-..."
                     style={{marginBottom:8, fontFamily:"'DM Mono',monospace"}}
                   />
