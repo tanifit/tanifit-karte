@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 // ── Gemini API helper ──────────────────────────────────────────
 async function callGemini(apiKey, prompt, maxTokens) {
   var res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey,
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=" + apiKey,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -752,12 +752,17 @@ export default function App() {
       var p = line.split(/\t/).map(function(x){ return x.trim(); });
       if (!p[0] || p[0].startsWith("種目名") || p[0].startsWith("〈")) return;
       var name = p[0];
-      // video_url: skip placeholder text, fallback to YouTube search
-      var rawVideo = p[13] || "";
+      // Auto-detect new format (with タイプ・関連動作パターン columns) vs old format
+      var TYPES = ["静的ストレッチ","モビリティ","スタビリティ","ウエイトトレーニング","サーキット"];
+      var hasNewFormat = TYPES.indexOf(p[1]) !== -1;
+      var offset = hasNewFormat ? 2 : 0; // new format: B=タイプ, C=パターン, D=部位...
+      var movementPattern = hasNewFormat ? (p[2] || "") : "";
+      var bodyPart = p[1 + offset] || "";
+      var wBase = 2 + offset;
+      var rawVideo = p[13 + offset] || "";
       var videoUrl = (rawVideo && rawVideo.startsWith("http")) ? rawVideo
         : ("https://www.youtube.com/results?search_query=" + encodeURIComponent(name + " フォーム 解説"));
-      // image_url: convert Google Drive share link to direct embed URL
-      var rawImage = p[14] || "";
+      var rawImage = p[14 + offset] || "";
       var imageUrl = "";
       if (rawImage.startsWith("http")) {
         var driveMatch = rawImage.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
@@ -770,16 +775,17 @@ export default function App() {
       loaded.push({
         name: name,
         category: currentCategory,
-        body_part: p[1] || "",
+        movement_patterns: movementPattern,
+        body_part: bodyPart,
         weight: {
-          "男初級": p[2] || "", "男中級": p[3] || "", "男上級": p[4] || "",
-          "女初級": p[5] || "", "女中級": p[6] || "", "女上級": p[7] || ""
+          "男初級": p[wBase] || "", "男中級": p[wBase+1] || "", "男上級": p[wBase+2] || "",
+          "女初級": p[wBase+3] || "", "女中級": p[wBase+4] || "", "女上級": p[wBase+5] || ""
         },
-        reps: p[8] || "",
-        interval: p[9] || "",
-        sets: p[10] || "3",
-        duration: p[11] || "",
-        coaching: p[12] || "",
+        reps: p[8 + offset] || "",
+        interval: p[9 + offset] || "",
+        sets: p[10 + offset] || "3",
+        duration: p[11 + offset] || "",
+        coaching: p[12 + offset] || "",
         video_url: videoUrl,
         image_url: imageUrl
       });
@@ -930,7 +936,8 @@ export default function App() {
         exerciseList.map(function(e){
           var w = e.weight || {};
           var wStr = ["男初級","男中級","男上級","女初級","女中級","女上級"].map(function(k){ return k+":"+(w[k]||"—"); }).join(", ");
-          return "[" + (e.category||"未分類") + "] " + e.name + " | 部位:" + (e.body_part||"?") + " | 所用時間:" + (e.duration||"?") + " | " + wStr + (e.coaching ? " | 指導:" + e.coaching : "");
+          var patStr = e.movement_patterns ? " | 動作パターン:" + e.movement_patterns : "";
+          return "[" + (e.category||"未分類") + "] " + e.name + " | 部位:" + (e.body_part||"?") + patStr + " | 所用時間:" + (e.duration||"?") + " | " + wStr + (e.coaching ? " | 指導:" + e.coaching : "");
         }).join("\n")
       : "";
 
@@ -946,8 +953,8 @@ export default function App() {
     }
 
     // JSON format: AI only picks exercise names and coaching note. Everything else is overridden by code.
-    var jsonFmt2 = '{"suggestions":[{"name":"会員名","member_id":"会員番号","target_parts":"胸・肩","exercises":[{"name":"種目リストの種目名をそのままコピー","note":"重量の引き継ぎや痛みの注意点のみ"}],"coach_note":"全体アドバイス"}]}';
-    var prompt2 = "あなたはパーソナルトレーナーのAIアシスタントです。\n\n" + memberData + exListHint + warmupHint + "\n\n指示:\n- 各会員の「本日の部位」に合った種目を種目リストの中から選ぶ\n- 【最重要】exercisesのnameは種目リストの種目名を一字一句そのままコピーする。絶対に変更・追記しない\n- 【30分制約】種目リストの「所用時間」を合計して30分以内に必ず収める。超えそうなら種目数を減らす\n- セット数・回数・インターバル・時間はJSONに含めない（システムが自動で設定する）\n- noteには「重量の引き継ぎ（前回○kg→今回○kg）」「⚠️ 痛み・制限の引き継ぎ」のみ記載\n- 【重量引き継ぎ】履歴に同じ種目がある場合その重量を引き継ぐ。メモに「次回○kg」があれば優先\n- 【痛み引き継ぎ】メモに痛み・違和感・注意事項があればnoteに「⚠️ ○○に注意」を記載\n- 【種目の並び順】必ず以下の順序で構成すること：①静的ストレッチ（1〜2種）→②モビリティ（2〜3種）→③スタビリティ（1〜2種）→④ウエイトトレーニング（メイン2〜4種）\n- ゴール種目別ウォームアップ流れ表がある場合はそれを参考に、最終的なウエイト種目に向けて準備種目を選ぶ\n\n以下のJSONのみ返してください:\n" + jsonFmt2;
+    var jsonFmt2 = '{"suggestions":[{"name":"会員名","member_id":"会員番号","target_parts":"胸・肩","main_exercises":["メインのウエイト種目名"],"movement_patterns_needed":["プッシュ","プランク"],"exercises":[{"name":"種目リストの種目名をそのままコピー","note":"重量の引き継ぎや痛みの注意点のみ"}],"coach_note":"全体アドバイス"}]}';
+    var prompt2 = "あなたはプロのパーソナルトレーナーAIです。\n\n" + memberData + exListHint + "\n\n【メニュー設計の哲学】\n全てのウエイトトレーニングは7つの基礎動作（プランク・スクワット・ランジ・ヒンジ・ローテーション・プッシュ・プル）の組み合わせです。\nウォームアップはゴール（メインウエイト種目）の動作パターンを逆算して設計します。\n\n【設計手順】（必ずこの順序で考えること）\nSTEP1: 会員の部位から本日のメインウエイト種目を2種選ぶ（[ウエイトトレーニング]タグの種目から）\nSTEP2: その種目の「動作パターン」を確認する（例: ベンチプレス→プッシュ,プランク）\nSTEP3: 同じ動作パターンを持つウォームアップ種目を選ぶ（以下の構成で）：\n  ①静的ストレッチ（1〜2種）: 動作パターンが一致する[静的ストレッチ]から\n  ②モビリティ（2〜3種）: 動作パターンが一致する[モビリティ]から\n  ③スタビリティ（1〜2種）: 動作パターンが一致する[スタビリティ]から（プランクは汎用的なので優先）\n  ④ウエイトトレーニング（2種）: STEP1で選んだメイン種目\n\n【絶対ルール】\n- exercisesのnameは種目リストの種目名を一字一句そのままコピー。変更厳禁\n- 【30分制約】所用時間の合計を30分以内に収める。超えたら種目を削る\n- セット数・回数・インターバル・時間はJSONに含めない\n- noteには重量引き継ぎ（前回→今回）と⚠️痛み注意のみ\n- 重量引き継ぎ: 履歴に同じ種目があれば引き継ぐ。「次回○kg」メモがあれば優先\n- 痛み引き継ぎ: メモに痛み・違和感があればnoteに「⚠️ ○○に注意」\n\n以下のJSONのみ返してください:\n" + jsonFmt2;
 
     try {
       var raw2 = await callGemini(apiKey, prompt2, 6000);
