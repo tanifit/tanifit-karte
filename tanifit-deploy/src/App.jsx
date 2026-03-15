@@ -1821,8 +1821,7 @@ export default function App() {
                     <textarea
                       value={csvInput}
                       onChange={function(e){ setCsvInput(e.target.value); }}
-                      placeholder={"3	田中太郎	taro@example.com	たなかたろう
-4	谷川直斗	tanikawa@example.com	たにかわなおと"}
+                      placeholder={"3\t田中太郎\ttaro@example.com\tたなかたろう\n4\t谷川直斗\ttanikawa@example.com\tたにかわなおと"}
                       style={{minHeight:100,marginBottom:8}}
                     />
                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
@@ -1862,7 +1861,7 @@ export default function App() {
                   <details style={{marginTop:8}}>
                     <summary style={{fontSize:11,color:"#9AA0AC",cursor:"pointer",userSelect:"none",marginBottom:8}}>または手動でコピペ</summary>
                     <textarea value={exInput} onChange={function(e){ setExInput(e.target.value); }}
-                      placeholder={"ベンチプレス	胸	20kg	40kg	60kg	10kg	20kg	30kg	10回	60秒	3	5分	肩甲骨を寄せて胸をしっかり張る"}
+                      placeholder={"ベンチプレス\t胸\t20kg\t40kg\t60kg\t10kg\t20kg\t30kg\t10回\t60秒\t3\t5分\t肩甲骨を寄せて胸をしっかり張る"}
                       style={{minHeight:100, marginBottom:8}} />
                     <div style={{display:"flex", gap:10, alignItems:"center"}}>
                       <button className="btn" onClick={importExercises} disabled={!exInput.trim()}>📋 登録する</button>
