@@ -1541,12 +1541,12 @@ export default function App() {
                                   updateSlotId(emptySlot, m.id);
                                   setPrepSearch("");
                                 }}
-                                style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10,cursor:(alreadyIn||emptySlot<0)?"default":"pointer",opacity:(alreadyIn||emptySlot<0)?0.4:1,borderBottom:"1px solid #1e1e1e"}}>
+                                style={{padding:"10px 14px",display:"flex",alignItems:"center",gap:10,cursor:(alreadyIn||emptySlot<0)?"default":"pointer",opacity:(alreadyIn||emptySlot<0)?0.5:1,borderBottom:"1px solid #1e1e1e"}}>
                                 <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"#F07020"}}>#{m.id}</span>
-                                <span style={{fontSize:13}}>{m.name}</span>
-                                {m.furigana && <span style={{fontSize:10,color:"#555"}}>{m.furigana}</span>}
-                                {alreadyIn && <span style={{fontSize:10,color:"#555",marginLeft:"auto"}}>追加済み</span>}
-                                {!alreadyIn && emptySlot < 0 && <span style={{fontSize:10,color:"#555",marginLeft:"auto"}}>満員</span>}
+                                <span style={{fontSize:13,color:"#ffffff",fontWeight:600}}>{m.name}</span>
+                                {m.furigana && <span style={{fontSize:10,color:"#aaaaaa"}}>{m.furigana}</span>}
+                                {alreadyIn && <span style={{fontSize:10,color:"#aaaaaa",marginLeft:"auto"}}>追加済み</span>}
+                                {!alreadyIn && emptySlot < 0 && <span style={{fontSize:10,color:"#aaaaaa",marginLeft:"auto"}}>満員</span>}
                               </div>
                             );
                           })}
