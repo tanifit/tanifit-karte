@@ -824,6 +824,16 @@ export default function App() {
   var [importMsg, setImportMsg] = useState("");
   var [importOk, setImportOk] = useState(false);
 
+  // Google Sheets sync
+  var [memberSheetUrl, setMemberSheetUrl] = useState(localStorage.getItem("tanifit:member_sheet_url") || "");
+  var [exSheetUrl, setExSheetUrl] = useState(localStorage.getItem("tanifit:ex_sheet_url") || "");
+  var [memberSyncMsg, setMemberSyncMsg] = useState("");
+  var [memberSyncOk, setMemberSyncOk] = useState(false);
+  var [exSyncMsg, setExSyncMsg] = useState("");
+  var [exSyncOk, setExSyncOk] = useState(false);
+  var [memberSyncing, setMemberSyncing] = useState(false);
+  var [exSyncing, setExSyncing] = useState(false);
+
   // Import exercise list (duplicate removed — see importExercises above)
   function importExercisesDupe() {}
 
@@ -980,6 +990,110 @@ export default function App() {
     } else {
       await saveHistory(newHistory);
     }
+  }
+
+  // Google Sheets URL → CSV export URL変換
+  function toSheetsCsvUrl(url, sheetId) {
+    // /edit, /view などを除去してCSVエクスポートURLに変換
+    var match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if (!match) return null;
+    var id = match[1];
+    // gidパラメータを抽出
+    var gidMatch = url.match(/[#&?]gid=([0-9]+)/);
+    var gid = gidMatch ? gidMatch[1] : "0";
+    return "https://docs.google.com/spreadsheets/d/" + id + "/export?format=csv&gid=" + gid;
+  }
+
+  async function syncMemberSheet() {
+    var csvUrl = toSheetsCsvUrl(memberSheetUrl);
+    if (!csvUrl) { setMemberSyncMsg("URLが正しくありません"); setMemberSyncOk(false); return; }
+    setMemberSyncing(true); setMemberSyncMsg(""); 
+    try {
+      var res = await fetch(csvUrl);
+      if (!res.ok) throw new Error("取得失敗 (ステータス: " + res.status + ")");
+      var text = await res.text();
+      var lines = text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
+      // ヘッダー行をスキップ（1行目が数字でなければヘッダー）
+      var dataLines = lines;
+      if (lines.length > 0) {
+        var firstCell = lines[0].split(",")[0].replace(/"/g,"").trim();
+        if (isNaN(Number(firstCell))) dataLines = lines.slice(1);
+      }
+      var loaded = [];
+      dataLines.forEach(function(line) {
+        var parts = line.split(",").map(function(p){ return p.replace(/^"|"$/g,"").trim(); });
+        if (parts.length >= 2 && parts[0] && parts[1]) {
+          loaded.push({ id: parts[0], name: parts[1], email: parts[2] || "", furigana: parts[3] || "", gender: parts[4] || "" });
+        }
+      });
+      if (loaded.length === 0) throw new Error("データが見つかりませんでした");
+      setMembers(loaded);
+      await saveConfig({ members: loaded });
+      setMemberSyncMsg("✓ " + loaded.length + "名を同期しました");
+      setMemberSyncOk(true);
+      localStorage.setItem("tanifit:member_sheet_url", memberSheetUrl);
+    } catch(e) {
+      setMemberSyncMsg("エラー: " + e.message);
+      setMemberSyncOk(false);
+    } finally { setMemberSyncing(false); }
+  }
+
+  async function syncExSheet() {
+    var csvUrl = toSheetsCsvUrl(exSheetUrl);
+    if (!csvUrl) { setExSyncMsg("URLが正しくありません"); setExSyncOk(false); return; }
+    setExSyncing(true); setExSyncMsg("");
+    try {
+      var res = await fetch(csvUrl);
+      if (!res.ok) throw new Error("取得失敗 (ステータス: " + res.status + ")");
+      var text = await res.text();
+      var lines = text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
+      // ヘッダー行をスキップ
+      var dataLines = lines;
+      if (lines.length > 0) {
+        var firstCell = lines[0].split(",")[0].replace(/"/g,"").trim();
+        if (!firstCell || isNaN(Number(firstCell)) && firstCell.length > 0 && !/^[ぁ-ん|ァ-ヶ|一-龥]/.test(firstCell)) {
+          dataLines = lines.slice(1);
+        }
+      }
+      // タブ区切りCSV両対応でimportExercisesの処理を流用
+      var joined = dataLines.join("\n");
+      setExInput(joined);
+      // importExercisesと同じロジック
+      var loadedEx = [];
+      dataLines.forEach(function(line) {
+        var parts = line.split(",").map(function(p){ return p.replace(/^"|"$/g,"").trim(); });
+        if (parts.length < 2 || !parts[0]) return;
+        var hasType = parts.length >= 3 && ["静的ストレッチ","モビリティ","スタビリティ","ウエイトトレーニング","ウエイト","有酸素"].indexOf(parts[1]) >= 0;
+        var off = hasType ? 1 : 0;
+        var category = hasType ? parts[1] : "";
+        var movPat = (hasType && parts.length >= 3) ? parts[2] : "";
+        var w = {};
+        ["男初級","男中級","男上級","女初級","女中級","女上級"].forEach(function(k,ki){
+          w[k] = parts[3+off+ki] || "";
+        });
+        loadedEx.push({
+          name: parts[0], category: category, movement_patterns: movPat,
+          body_part: parts[2+off] || "",
+          weight: w,
+          reps: parts[9+off] || "",
+          interval: parts[10+off] || "",
+          sets: parts[11+off] || "3",
+          duration: parts[12+off] || "",
+          coaching: parts[13+off] || "",
+          video_url: parts[14+off] || "",
+          image_url: parts[15+off] || ""
+        });
+      });
+      if (loadedEx.length === 0) throw new Error("データが見つかりませんでした");
+      setExerciseList(loadedEx);
+      await saveConfig({ exerciseList: loadedEx });
+      setExSyncMsg("✓ " + loadedEx.length + "種目を同期しました");
+      setExSyncOk(true);
+      localStorage.setItem("tanifit:ex_sheet_url", exSheetUrl);
+    } catch(e) {
+      setExSyncMsg("エラー: " + e.message);
+      setExSyncOk(false);
+    } finally { setExSyncing(false); }
   }
 
   // Import CSV
@@ -1682,27 +1796,43 @@ export default function App() {
                   <div className="panel-title">会員リスト 登録</div>
                 </div>
                 <div className="panel-body">
-                  <div className="label" style={{marginBottom:8}}>スプレッドシートから貼り付け</div>
-                  <div className="hint" style={{marginBottom:12}}>
-                    Googleスプレッドシートで以下の列をコピー＆ペーストしてください。<br/>
-                    <code style={{color:"#ff7030", fontSize:11}}>会員番号[タブ]氏名[タブ]メールアドレス[タブ]ふりがな[タブ]性別(男/女)</code><br/>
-                    <code style={{color:"#555", fontSize:10}}>例: 3	田中太郎	taro@example.com	たなかたろう	男</code>
+                  {/* Google Sheets同期 */}
+                  <div className="label" style={{marginBottom:6}}>🔗 Googleスプレッドシートから自動同期</div>
+                  <div className="hint" style={{marginBottom:8}}>
+                    スプレッドシートを「ファイル → 共有 → ウェブに公開」で公開してからURLを貼り付けてください。<br/>
+                    列順: <code style={{color:"#F07020",fontSize:10}}>会員番号 / 氏名 / メールアドレス / ふりがな / 性別</code>
                   </div>
-                  <textarea
-                    value={csvInput}
-                    onChange={function(e){ setCsvInput(e.target.value); }}
-                    placeholder={"3\t田中太郎\ttaro@example.com\tたなかたろう\n4\t谷川直斗\ttanikawa@example.com\tたにかわなおと"}
-                    style={{minHeight:140,marginBottom:12}}
-                  />
-                  <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                    <button className="btn" onClick={importCsv} disabled={!csvInput.trim()}>📋 登録する</button>
-                    {members.length > 0 && (
-                      <button className="btn-ghost" onClick={function(){ setMembers([]); saveConfig({ members: [] }); setImportMsg("クリアしました"); setImportOk(false); }}>
-                        クリア
-                      </button>
-                    )}
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <input type="text" value={memberSheetUrl}
+                      onChange={function(e){ setMemberSheetUrl(e.target.value); }}
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      style={{fontSize:11,fontFamily:"'DM Mono',monospace"}}
+                    />
+                    <button className="btn" style={{whiteSpace:"nowrap",minWidth:80}}
+                      onClick={syncMemberSheet} disabled={!memberSheetUrl.trim() || memberSyncing}>
+                      {memberSyncing ? "同期中..." : "🔄 同期"}
+                    </button>
                   </div>
-                  {importMsg && <div className={"success-box" + (importOk ? "" : " error-box")} style={{marginTop:12,marginBottom:0}}>{importMsg}</div>}
+                  {memberSyncMsg && <div className={memberSyncOk?"success-box":"error-box"} style={{marginBottom:8}}>{memberSyncMsg}</div>}
+
+                  {/* 手動貼り付け（折りたたみ） */}
+                  <details style={{marginTop:8}}>
+                    <summary style={{fontSize:11,color:"#9AA0AC",cursor:"pointer",userSelect:"none",marginBottom:8}}>または手動でコピペ</summary>
+                    <textarea
+                      value={csvInput}
+                      onChange={function(e){ setCsvInput(e.target.value); }}
+                      placeholder={"3	田中太郎	taro@example.com	たなかたろう
+4	谷川直斗	tanikawa@example.com	たにかわなおと"}
+                      style={{minHeight:100,marginBottom:8}}
+                    />
+                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <button className="btn" onClick={importCsv} disabled={!csvInput.trim()}>📋 登録する</button>
+                      {members.length > 0 && (
+                        <button className="btn-ghost" onClick={function(){ setMembers([]); saveConfig({ members: [] }); setImportMsg("クリアしました"); setImportOk(false); }}>クリア</button>
+                      )}
+                    </div>
+                    {importMsg && <div className={"success-box" + (importOk ? "" : " error-box")} style={{marginTop:8,marginBottom:0}}>{importMsg}</div>}
+                  </details>
                 </div>
               </div>
 
@@ -1711,21 +1841,37 @@ export default function App() {
                   <div className="panel-title">種目リスト 登録</div>
                 </div>
                 <div className="panel-body">
-                  <div className="label" style={{marginBottom:8}}>スプレッドシートから貼り付け</div>
-                  <div className="hint" style={{marginBottom:12}}>
-                    形式: <code style={{color:"#ff7030"}}>種目名/部位/男性-初級/男性-中級/男性-上級/女性-初級/女性-中級/女性-上級/レップ数/インターバル/セット数/所用時間/一言レクチャー/動画URL(省略可)/画像URL(省略可)</code><br/>
-                    ※スプレッドシートからそのままコピー&ペーストでOK。動画URL列がない場合はYouTube検索URLを自動生成します。
+                  {/* Google Sheets同期 */}
+                  <div className="label" style={{marginBottom:6}}>🔗 Googleスプレッドシートから自動同期</div>
+                  <div className="hint" style={{marginBottom:8}}>
+                    スプレッドシートを「ウェブに公開」してからURLを貼り付け。シートタブごとにURLが異なるので種目リストのシートのURLを使ってください。
                   </div>
-                  <textarea value={exInput} onChange={function(e){ setExInput(e.target.value); }}
-                    placeholder={"ベンチプレス\t胸\t20kg\t40kg\t60kg\t10kg\t20kg\t30kg\t10回\t60秒\t3\t5分\t肩甲骨を寄せて胸をしっかり張る"}
-                    style={{minHeight:120, marginBottom:12}} />
-                  <div style={{display:"flex", gap:10, alignItems:"center"}}>
-                    <button className="btn" onClick={importExercises} disabled={!exInput.trim()}>📋 登録する</button>
-                    {exerciseList.length > 0 && (
-                      <button className="btn-ghost" onClick={function(){ setExerciseList([]); saveConfig({ exerciseList:[] }); setExImportMsg("クリアしました"); setExImportOk(false); }}>クリア</button>
-                    )}
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <input type="text" value={exSheetUrl}
+                      onChange={function(e){ setExSheetUrl(e.target.value); }}
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      style={{fontSize:11,fontFamily:"'DM Mono',monospace"}}
+                    />
+                    <button className="btn" style={{whiteSpace:"nowrap",minWidth:80}}
+                      onClick={syncExSheet} disabled={!exSheetUrl.trim() || exSyncing}>
+                      {exSyncing ? "同期中..." : "🔄 同期"}
+                    </button>
                   </div>
-                  {exImportMsg && <div className={"success-box"+(exImportOk?"":" error-box")} style={{marginTop:12,marginBottom:0}}>{exImportMsg}</div>}
+                  {exSyncMsg && <div className={exSyncOk?"success-box":"error-box"} style={{marginBottom:8}}>{exSyncMsg}</div>}
+
+                  <details style={{marginTop:8}}>
+                    <summary style={{fontSize:11,color:"#9AA0AC",cursor:"pointer",userSelect:"none",marginBottom:8}}>または手動でコピペ</summary>
+                    <textarea value={exInput} onChange={function(e){ setExInput(e.target.value); }}
+                      placeholder={"ベンチプレス	胸	20kg	40kg	60kg	10kg	20kg	30kg	10回	60秒	3	5分	肩甲骨を寄せて胸をしっかり張る"}
+                      style={{minHeight:100, marginBottom:8}} />
+                    <div style={{display:"flex", gap:10, alignItems:"center"}}>
+                      <button className="btn" onClick={importExercises} disabled={!exInput.trim()}>📋 登録する</button>
+                      {exerciseList.length > 0 && (
+                        <button className="btn-ghost" onClick={function(){ setExerciseList([]); saveConfig({ exerciseList:[] }); setExImportMsg("クリアしました"); setExImportOk(false); }}>クリア</button>
+                      )}
+                    </div>
+                    {exImportMsg && <div className={"success-box"+(exImportOk?"":" error-box")} style={{marginTop:8,marginBottom:0}}>{exImportMsg}</div>}
+                  </details>
                   {exerciseList.length > 0 && (
                     <div style={{marginTop:14, maxHeight:220, overflowY:"auto", borderTop:"1px solid #E4E8EC", paddingTop:10}}>
                       <div style={{display:"grid", gridTemplateColumns:"80px 1fr 50px 50px 50px 50px 50px 50px 50px 50px 30px", gap:4, marginBottom:6, padding:"0 4px"}}>
