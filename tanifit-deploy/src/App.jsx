@@ -826,6 +826,7 @@ export default function App() {
 
   // Google Sheets sync
   var [memberSheetUrl, setMemberSheetUrl] = useState(localStorage.getItem("tanifit:member_sheet_url") || "");
+  var [memberSheetUrl2, setMemberSheetUrl2] = useState(localStorage.getItem("tanifit:member_sheet_url2") || "");
   var [exSheetUrl, setExSheetUrl] = useState(localStorage.getItem("tanifit:ex_sheet_url") || "");
   var [memberSyncMsg, setMemberSyncMsg] = useState("");
   var [memberSyncOk, setMemberSyncOk] = useState(false);
@@ -1007,31 +1008,46 @@ export default function App() {
   async function syncMemberSheet() {
     var csvUrl = toSheetsCsvUrl(memberSheetUrl);
     if (!csvUrl) { setMemberSyncMsg("URLが正しくありません"); setMemberSyncOk(false); return; }
-    setMemberSyncing(true); setMemberSyncMsg(""); 
+    setMemberSyncing(true); setMemberSyncMsg("");
     try {
-      var res = await fetch(csvUrl);
-      if (!res.ok) throw new Error("取得失敗 (ステータス: " + res.status + ")");
-      var text = await res.text();
-      var lines = text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
-      // ヘッダー行をスキップ（1行目が数字でなければヘッダー）
-      var dataLines = lines;
-      if (lines.length > 0) {
-        var firstCell = lines[0].split(",")[0].replace(/"/g,"").trim();
-        if (isNaN(Number(firstCell))) dataLines = lines.slice(1);
-      }
-      var loaded = [];
-      dataLines.forEach(function(line) {
-        var parts = line.split(",").map(function(p){ return p.replace(/^"|"$/g,"").trim(); });
-        if (parts.length >= 2 && parts[0] && parts[1]) {
-          loaded.push({ id: parts[0], name: parts[1], email: parts[2] || "", furigana: parts[3] || "", gender: parts[4] || "" });
+      async function fetchSheet(url) {
+        var res = await fetch(url);
+        if (!res.ok) throw new Error("取得失敗 (ステータス: " + res.status + ")");
+        var text = await res.text();
+        var lines = text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
+        var dataLines = lines;
+        if (lines.length > 0) {
+          var firstCell = lines[0].split(",")[0].replace(/"/g,"").trim();
+          if (isNaN(Number(firstCell))) dataLines = lines.slice(1);
         }
-      });
+        var loaded = [];
+        dataLines.forEach(function(line) {
+          var parts = line.split(",").map(function(p){ return p.replace(/^"|"$/g,"").trim(); });
+          if (parts.length >= 2 && parts[0] && parts[1]) {
+            loaded.push({ id: parts[0], name: parts[1], email: parts[2] || "", furigana: parts[3] || "", gender: parts[4] || "" });
+          }
+        });
+        return loaded;
+      }
+      var loaded = await fetchSheet(csvUrl);
+      // 2枚目のシートがあれば追加でフェッチしてマージ
+      if (memberSheetUrl2.trim()) {
+        var csvUrl2 = toSheetsCsvUrl(memberSheetUrl2);
+        if (csvUrl2) {
+          var loaded2 = await fetchSheet(csvUrl2);
+          // IDが重複しない場合のみ追加
+          loaded2.forEach(function(m) {
+            if (!loaded.find(function(x){ return x.id === m.id; })) loaded.push(m);
+          });
+        }
+      }
       if (loaded.length === 0) throw new Error("データが見つかりませんでした");
       setMembers(loaded);
       await saveConfig({ members: loaded });
       setMemberSyncMsg("✓ " + loaded.length + "名を同期しました");
       setMemberSyncOk(true);
       localStorage.setItem("tanifit:member_sheet_url", memberSheetUrl);
+      if (memberSheetUrl2.trim()) localStorage.setItem("tanifit:member_sheet_url2", memberSheetUrl2);
     } catch(e) {
       setMemberSyncMsg("エラー: " + e.message);
       setMemberSyncOk(false);
@@ -1802,10 +1818,17 @@ export default function App() {
                     スプレッドシートを「ファイル → 共有 → ウェブに公開」で公開してからURLを貼り付けてください。<br/>
                     列順: <code style={{color:"#F07020",fontSize:10}}>会員番号 / 氏名 / メールアドレス / ふりがな / 性別</code>
                   </div>
-                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                  <div style={{display:"flex",gap:8,marginBottom:6}}>
                     <input type="text" value={memberSheetUrl}
                       onChange={function(e){ setMemberSheetUrl(e.target.value); }}
-                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      placeholder="シート1のURL（例：渋谷店）"
+                      style={{fontSize:11,fontFamily:"'DM Mono',monospace"}}
+                    />
+                  </div>
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <input type="text" value={memberSheetUrl2}
+                      onChange={function(e){ setMemberSheetUrl2(e.target.value); }}
+                      placeholder="シート2のURL（例：南林間店）省略可"
                       style={{fontSize:11,fontFamily:"'DM Mono',monospace"}}
                     />
                     <button className="btn" style={{whiteSpace:"nowrap",minWidth:80}}
