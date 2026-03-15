@@ -993,16 +993,14 @@ export default function App() {
     }
   }
 
-  // Google Sheets URL → CSV export URL変換
-  function toSheetsCsvUrl(url, sheetId) {
-    // /edit, /view などを除去してCSVエクスポートURLに変換
+  // Google Sheets URL → TSV export URL変換（カンマ入りセル対策でTSVを使用）
+  function toSheetsCsvUrl(url) {
     var match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
     if (!match) return null;
     var id = match[1];
-    // gidパラメータを抽出
     var gidMatch = url.match(/[#&?]gid=([0-9]+)/);
     var gid = gidMatch ? gidMatch[1] : "0";
-    return "https://docs.google.com/spreadsheets/d/" + id + "/export?format=csv&gid=" + gid;
+    return "https://docs.google.com/spreadsheets/d/" + id + "/export?format=tsv&gid=" + gid;
   }
 
   async function syncMemberSheet() {
@@ -1017,12 +1015,12 @@ export default function App() {
         var lines = text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
         var dataLines = lines;
         if (lines.length > 0) {
-          var firstCell = lines[0].split(",")[0].replace(/"/g,"").trim();
+          var firstCell = lines[0].split("\t")[0].trim();
           if (isNaN(Number(firstCell))) dataLines = lines.slice(1);
         }
         var loaded = [];
         dataLines.forEach(function(line) {
-          var parts = line.split(",").map(function(p){ return p.replace(/^"|"$/g,"").trim(); });
+          var parts = line.split("\t").map(function(p){ return p.trim(); });
           if (parts.length >= 2 && parts[0] && parts[1]) {
             loaded.push({ id: parts[0], name: parts[1], email: parts[2] || "", furigana: parts[3] || "", gender: parts[4] || "" });
           }
@@ -1030,12 +1028,10 @@ export default function App() {
         return loaded;
       }
       var loaded = await fetchSheet(csvUrl);
-      // 2枚目のシートがあれば追加でフェッチしてマージ
       if (memberSheetUrl2.trim()) {
         var csvUrl2 = toSheetsCsvUrl(memberSheetUrl2);
         if (csvUrl2) {
           var loaded2 = await fetchSheet(csvUrl2);
-          // IDが重複しない場合のみ追加
           loaded2.forEach(function(m) {
             if (!loaded.find(function(x){ return x.id === m.id; })) loaded.push(m);
           });
@@ -1063,47 +1059,65 @@ export default function App() {
       if (!res.ok) throw new Error("取得失敗 (ステータス: " + res.status + ")");
       var text = await res.text();
       var lines = text.split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
-      // ヘッダー行をスキップ
-      var dataLines = lines;
-      if (lines.length > 0) {
-        var firstCell = lines[0].split(",")[0].replace(/"/g,"").trim();
-        if (!firstCell || isNaN(Number(firstCell)) && firstCell.length > 0 && !/^[ぁ-ん|ァ-ヶ|一-龥]/.test(firstCell)) {
-          dataLines = lines.slice(1);
+      // importExercisesと同じロジックで解析（TSV＋〈〉ヘッダー対応）
+      var loaded = [];
+      var currentCategory = "";
+      lines.forEach(function(line) {
+        // カテゴリヘッダー行
+        if (/^[〈<（(]/.test(line) && (line.includes("ストレッチ") || line.includes("モビリティ") || line.includes("スタビリティ") || line.includes("ウエイト") || line.includes("サーキット"))) {
+          if (line.includes("静的ストレッチ")) currentCategory = "静的ストレッチ";
+          else if (line.includes("モビリティ")) currentCategory = "モビリティ";
+          else if (line.includes("スタビリティ")) currentCategory = "スタビリティ";
+          else if (line.includes("ウエイト")) currentCategory = "ウエイト";
+          else if (line.includes("サーキット")) currentCategory = "サーキット";
+          return;
         }
-      }
-      // タブ区切りCSV両対応でimportExercisesの処理を流用
-      var joined = dataLines.join("\n");
-      setExInput(joined);
-      // importExercisesと同じロジック
-      var loadedEx = [];
-      dataLines.forEach(function(line) {
-        var parts = line.split(",").map(function(p){ return p.replace(/^"|"$/g,"").trim(); });
-        if (parts.length < 2 || !parts[0]) return;
-        var hasType = parts.length >= 3 && ["静的ストレッチ","モビリティ","スタビリティ","ウエイトトレーニング","ウエイト","有酸素"].indexOf(parts[1]) >= 0;
-        var off = hasType ? 1 : 0;
-        var category = hasType ? parts[1] : "";
-        var movPat = (hasType && parts.length >= 3) ? parts[2] : "";
-        var w = {};
-        ["男初級","男中級","男上級","女初級","女中級","女上級"].forEach(function(k,ki){
-          w[k] = parts[3+off+ki] || "";
-        });
-        loadedEx.push({
-          name: parts[0], category: category, movement_patterns: movPat,
-          body_part: parts[2+off] || "",
-          weight: w,
-          reps: parts[9+off] || "",
-          interval: parts[10+off] || "",
-          sets: parts[11+off] || "3",
-          duration: parts[12+off] || "",
-          coaching: parts[13+off] || "",
-          video_url: parts[14+off] || "",
-          image_url: parts[15+off] || ""
+        var p = line.split("\t").map(function(x){ return x.trim(); });
+        if (!p[0] || p[0].startsWith("種目名") || p[0].startsWith("〈")) return;
+        var name = p[0];
+        var TYPES = ["静的ストレッチ","モビリティ","スタビリティ","ウエイトトレーニング","サーキット"];
+        var hasNewFormat = TYPES.indexOf(p[1]) !== -1;
+        var offset = hasNewFormat ? 2 : 0;
+        var cat = hasNewFormat ? p[1] : currentCategory;
+        // ウエイトトレーニング→ウエイトに統一
+        if (cat === "ウエイトトレーニング") cat = "ウエイトトレーニング";
+        var movementPattern = hasNewFormat ? (p[2] || "") : "";
+        var bodyPart = p[1 + offset] || "";
+        var wBase = 2 + offset;
+        var rawVideo = p[13 + offset] || "";
+        var videoUrl = (rawVideo && rawVideo.startsWith("http")) ? rawVideo
+          : ("https://www.youtube.com/results?search_query=" + encodeURIComponent(name + " フォーム 解説"));
+        var rawImage = p[14 + offset] || "";
+        var imageUrl = "";
+        if (rawImage && rawImage.startsWith("http")) {
+          var driveMatch = rawImage.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+          if (driveMatch) imageUrl = "https://drive.google.com/uc?export=view&id=" + driveMatch[1];
+          else imageUrl = rawImage;
+        }
+        loaded.push({
+          name: name,
+          category: cat,
+          movement_patterns: movementPattern,
+          body_part: bodyPart,
+          weight: {
+            "男初級": p[wBase] || "", "男中級": p[wBase+1] || "", "男上級": p[wBase+2] || "",
+            "女初級": p[wBase+3] || "", "女中級": p[wBase+4] || "", "女上級": p[wBase+5] || ""
+          },
+          reps: p[8 + offset] || "",
+          interval: p[9 + offset] || "",
+          sets: p[10 + offset] || "3",
+          duration: p[11 + offset] || "",
+          coaching: p[12 + offset] || "",
+          video_url: videoUrl,
+          image_url: imageUrl
         });
       });
-      if (loadedEx.length === 0) throw new Error("データが見つかりませんでした");
-      setExerciseList(loadedEx);
-      await saveConfig({ exerciseList: loadedEx });
-      setExSyncMsg("✓ " + loadedEx.length + "種目を同期しました");
+      if (loaded.length === 0) throw new Error("データが見つかりませんでした");
+      setExerciseList(loaded);
+      await saveConfig({ exerciseList: loaded });
+      var catCounts = {};
+      loaded.forEach(function(e){ catCounts[e.category||"未分類"] = (catCounts[e.category||"未分類"]||0)+1; });
+      setExSyncMsg("✓ " + loaded.length + "種目を同期（" + Object.entries(catCounts).map(function(kv){ return kv[0]+":"+kv[1]; }).join(", ") + "）");
       setExSyncOk(true);
       localStorage.setItem("tanifit:ex_sheet_url", exSheetUrl);
     } catch(e) {
