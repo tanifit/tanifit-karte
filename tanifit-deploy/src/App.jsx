@@ -1280,14 +1280,15 @@ export default function App() {
         return s.id + " " + name + (s.parts.length > 0 ? "（" + s.parts.join("・") + "）" : "");
       }).join("\n");
     } else if (members.length > 0) {
-      memberHint = "\n参加会員リスト（会員番号 氏名 ふりがな）:\n" + members.map(function(m){ return m.id + " " + m.name + (m.furigana ? "（" + m.furigana + "）" : ""); }).join("\n");
+      // 全会員リストは長すぎるので先頭50名のみ渡す（音声に名前が出てきた場合の照合用）
+      memberHint = "\n参加会員リスト（会員番号 氏名 ふりがな）:\n" + members.slice(0, 50).map(function(m){ return m.id + " " + m.name + (m.furigana ? "（" + m.furigana + "）" : ""); }).join("\n");
     }
 
     var jsonFmt = '{"session_datetime":"2026/03/10 09:00（音声に日時があれば抽出。なければnull）","kartes":[{"name":"名前","member_id":"","exercises":[{"name":"種目名","sets":[{"weight":60,"reps":"15（または立位15→座位15のような文字列も可）","note":""}]}],"notes":""}]}';
     var prompt = "あなたはジムのカルテ作成AIです。以下のトレーニングセッションの文字起こしから、会員ごとのトレーニング記録をJSONで抽出してください。" + memberHint + "\n\nルール:\n- 参加会員リストがある場合、名前・ふりがなの表記ゆれを正式名称に統一し会員番号も付与する。音声認識の誤変換（例：「たかき」→「高木」）にも対応し、ふりがなが近い会員と照合する\n- 【最重要】実施した種目はすべてexercisesに入れる。プランク・サイドプランク・マウンテンクライマー・体幹トレーニング・ストレッチ等も全て種目として記録する\n- notesには怪我・体調・フォーム指導・特記事項のみ記録する。種目をnotesに入れてはいけない\n- セット途中で重量・回数が変わったら各セットに反映する\n- 時間系種目（プランク等）はweightをnull、repsを「60秒」のような文字列で記録する\n- weightはkg数値（不明はnull）。ドロップセット・立位/座位の連続は reps を 立位15→座位15 のような文字列で表現し1セットとして記録する\n- 音声に日時・日付・時刻が含まれていれば session_datetime に 2026/03/10 09:00 形式で入れる。なければnull\n\n文字起こし:\n\"\"\"\n" + text + "\n\"\"\"\n\n以下のJSONのみ返してください:\n" + jsonFmt;
 
     try {
-      var raw = await callGemini(apiKey, prompt, 4000);
+      var raw = await callGemini(apiKey, prompt, 8000);
       // Strip markdown code fences (Safari-safe string approach)
       while (raw.indexOf("```json") !== -1) raw = raw.split("```json").join("");
       while (raw.indexOf("```") !== -1) raw = raw.split("```").join("");
