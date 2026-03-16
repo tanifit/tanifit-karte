@@ -948,6 +948,9 @@ export default function App() {
             if (c.members) setMembers(c.members);
             if (c.exerciseList) setExerciseList(c.exerciseList);
             if (c.apiKey) { setApiKey(c.apiKey); localStorage.setItem("tanifit:apikey", c.apiKey); }
+            if (c.memberSheetUrl) { setMemberSheetUrl(c.memberSheetUrl); localStorage.setItem("tanifit:member_sheet_url", c.memberSheetUrl); }
+            if (c.memberSheetUrl2) { setMemberSheetUrl2(c.memberSheetUrl2); localStorage.setItem("tanifit:member_sheet_url2", c.memberSheetUrl2); }
+            if (c.exSheetUrl) { setExSheetUrl(c.exSheetUrl); localStorage.setItem("tanifit:ex_sheet_url", c.exSheetUrl); }
           }
         } catch(e) {}
         try {
@@ -1044,6 +1047,8 @@ export default function App() {
       setMemberSyncOk(true);
       localStorage.setItem("tanifit:member_sheet_url", memberSheetUrl);
       if (memberSheetUrl2.trim()) localStorage.setItem("tanifit:member_sheet_url2", memberSheetUrl2);
+      // FirebaseにもURLを保存（他デバイスで使えるように）
+      await saveConfig({ members: loaded, memberSheetUrl: memberSheetUrl, memberSheetUrl2: memberSheetUrl2 });
     } catch(e) {
       setMemberSyncMsg("エラー: " + e.message);
       setMemberSyncOk(false);
@@ -1120,6 +1125,8 @@ export default function App() {
       setExSyncMsg("✓ " + loaded.length + "種目を同期（" + Object.entries(catCounts).map(function(kv){ return kv[0]+":"+kv[1]; }).join(", ") + "）");
       setExSyncOk(true);
       localStorage.setItem("tanifit:ex_sheet_url", exSheetUrl);
+      // FirebaseにもURLを保存（他デバイスで使えるように）
+      await saveConfig({ exerciseList: loaded, exSheetUrl: exSheetUrl });
     } catch(e) {
       setExSyncMsg("エラー: " + e.message);
       setExSyncOk(false);
