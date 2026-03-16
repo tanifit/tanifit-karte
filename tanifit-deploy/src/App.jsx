@@ -1280,8 +1280,8 @@ export default function App() {
         return s.id + " " + name + (s.parts.length > 0 ? "（" + s.parts.join("・") + "）" : "");
       }).join("\n");
     } else if (members.length > 0) {
-      // 全会員リストは長すぎるので先頭50名のみ渡す（音声に名前が出てきた場合の照合用）
-      memberHint = "\n参加会員リスト（会員番号 氏名 ふりがな）:\n" + members.slice(0, 50).map(function(m){ return m.id + " " + m.name + (m.furigana ? "（" + m.furigana + "）" : ""); }).join("\n");
+      // IDと名前だけのコンパクト形式で全員渡す
+      memberHint = "\n参加会員リスト（会員番号 氏名 ふりがな）:\n" + members.map(function(m){ return m.id + " " + m.name + (m.furigana ? " " + m.furigana : ""); }).join("\n");
     }
 
     var jsonFmt = '{"session_datetime":"2026/03/10 09:00（音声に日時があれば抽出。なければnull）","kartes":[{"name":"名前","member_id":"","exercises":[{"name":"種目名","sets":[{"weight":60,"reps":"15（または立位15→座位15のような文字列も可）","note":""}]}],"notes":""}]}';
