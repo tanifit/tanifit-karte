@@ -1786,26 +1786,49 @@ export default function App() {
                         )}
                         {slot.id && openSlotHistory === idx && (function(){
                           var slotHistory = ((history[slot.id] || {}).sessions || []).slice(0, 5);
-                          if (slotHistory.length === 0) return <div style={{fontSize:11,color:"#aaa",marginTop:8,padding:"8px 0"}}>履歴なし</div>;
+                          var slotProfile = history[slot.id] || {};
                           return (
                             <div style={{marginTop:8,borderTop:"1px solid #E4E8EC",paddingTop:8}}>
-                              {slotHistory.map(function(sess, si) {
-                                return (
-                                  <div key={si} style={{marginBottom:si<slotHistory.length-1?10:0,paddingBottom:si<slotHistory.length-1?10:0,borderBottom:si<slotHistory.length-1?"1px solid #F4F5F7":"none"}}>
-                                    <div style={{fontSize:10,color:"#F07020",fontFamily:"'DM Mono',monospace",marginBottom:4,fontWeight:600}}>{sess.date}</div>
-                                    {(sess.karte.exercises||[]).map(function(ex,ei){
-                                      var setStr = (ex.sets||[]).map(function(st){ return (st.weight!=null?st.weight+"kg":"—")+"×"+(st.reps!=null?st.reps+"回":"—"); }).join(" / ");
-                                      return (
-                                        <div key={ei} style={{fontSize:11,color:"#5A6270",display:"flex",gap:8,padding:"1px 0"}}>
-                                          <span style={{minWidth:140,fontWeight:500}}>{ex.name}</span>
-                                          <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"#9AA0AC"}}>{setStr}</span>
-                                        </div>
-                                      );
-                                    })}
-                                    {sess.karte.notes && <div style={{fontSize:10,color:"#2A8A5A",marginTop:3}}>📝 {sess.karte.notes}</div>}
-                                  </div>
-                                );
-                              })}
+                              {/* 既往歴・目標 */}
+                              {slotProfile.injury && (
+                                <div style={{marginBottom:6,padding:"6px 10px",background:"#FFF5F5",border:"1px solid #F8CCC8",borderRadius:5}}>
+                                  <span style={{fontSize:10,color:"#E05050",fontWeight:600,marginRight:6}}>🩹 既往歴</span>
+                                  <span style={{fontSize:11,color:"#C04040"}}>{slotProfile.injury}</span>
+                                </div>
+                              )}
+                              {slotProfile.goal && (
+                                <div style={{marginBottom:6,padding:"6px 10px",background:"#FFF8F0",border:"1px solid #FFD8A8",borderRadius:5}}>
+                                  <span style={{fontSize:10,color:"#F07020",fontWeight:600,marginRight:6}}>🎯 目標</span>
+                                  <span style={{fontSize:11,color:"#C05010"}}>{slotProfile.goal}</span>
+                                </div>
+                              )}
+                              {slotProfile.memo && (
+                                <div style={{marginBottom:8,padding:"6px 10px",background:"#E8F8F8",border:"1px solid #B8E0E0",borderRadius:5}}>
+                                  <span style={{fontSize:10,color:"#45BFBF",fontWeight:600,marginRight:6}}>📝 メモ</span>
+                                  <span style={{fontSize:11,color:"#2A7A7A"}}>{slotProfile.memo}</span>
+                                </div>
+                              )}
+                              {/* セッション履歴 */}
+                              {slotHistory.length === 0 && !slotProfile.injury && !slotProfile.goal && !slotProfile.memo
+                                ? <div style={{fontSize:11,color:"#aaa",padding:"4px 0"}}>履歴なし</div>
+                                : slotHistory.map(function(sess, si) {
+                                  return (
+                                    <div key={si} style={{marginBottom:si<slotHistory.length-1?10:0,paddingBottom:si<slotHistory.length-1?10:0,borderBottom:si<slotHistory.length-1?"1px solid #F4F5F7":"none"}}>
+                                      <div style={{fontSize:10,color:"#F07020",fontFamily:"'DM Mono',monospace",marginBottom:4,fontWeight:600}}>{sess.date}</div>
+                                      {(sess.karte.exercises||[]).map(function(ex,ei){
+                                        var setStr = (ex.sets||[]).map(function(st){ return (st.weight!=null?st.weight+"kg":"—")+"×"+(st.reps!=null?st.reps+"回":"—"); }).join(" / ");
+                                        return (
+                                          <div key={ei} style={{fontSize:11,color:"#5A6270",display:"flex",gap:8,padding:"1px 0"}}>
+                                            <span style={{minWidth:140,fontWeight:500}}>{ex.name}</span>
+                                            <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"#9AA0AC"}}>{setStr}</span>
+                                          </div>
+                                        );
+                                      })}
+                                      {sess.karte.notes && <div style={{fontSize:10,color:"#2A8A5A",marginTop:3}}>📝 {sess.karte.notes}</div>}
+                                    </div>
+                                  );
+                                })
+                              }
                             </div>
                           );
                         })()}
