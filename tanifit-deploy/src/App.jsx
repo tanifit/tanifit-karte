@@ -1765,13 +1765,51 @@ export default function App() {
                   }).map(function(key) {
                     var m = history[key];
                     var isOpen = openMember === key;
+                    var [editingName, setEditingName] = React.useState(false);
+                    var [nameInput, setNameInput] = React.useState(m.name);
                     return (
                       <div className="member-row" key={key}>
-                        <div className={"member-row-header" + (isOpen ? " open" : "")} onClick={function(){ setOpenMember(isOpen ? null : key); }}>
+                        <div className={"member-row-header" + (isOpen ? " open" : "")} style={{gap:8}}>
                           {m.member_id && <span className="member-id-badge">#{m.member_id}</span>}
-                          <span className="member-name-big">{m.name}</span>
-                          <span className="member-count">{(m.sessions || []).length}回</span>
-                          <span className={"chevron" + (isOpen ? " open" : "")}>▶</span>
+                          {editingName ? (
+                            <input
+                              type="text"
+                              value={nameInput}
+                              onChange={function(e){ setNameInput(e.target.value); }}
+                              onKeyDown={async function(e){
+                                if (e.key === "Enter") {
+                                  var newHistory = JSON.parse(JSON.stringify(history));
+                                  newHistory[key].name = nameInput;
+                                  setHistory(newHistory);
+                                  await saveHistory(newHistory);
+                                  setEditingName(false);
+                                }
+                                if (e.key === "Escape") { setNameInput(m.name); setEditingName(false); }
+                              }}
+                              autoFocus
+                              style={{flex:1,fontSize:18,fontWeight:700,padding:"2px 8px",border:"1.5px solid #45BFBF",borderRadius:4,fontFamily:"'Bebas Neue',sans-serif",letterSpacing:2}}
+                            />
+                          ) : (
+                            <span className="member-name-big" onClick={function(){ setOpenMember(isOpen ? null : key); }} style={{flex:1,cursor:"pointer"}}>{m.name}</span>
+                          )}
+                          {editingName ? (
+                            <div style={{display:"flex",gap:4}}>
+                              <button className="edit-btn add" onClick={async function(){
+                                var newHistory = JSON.parse(JSON.stringify(history));
+                                newHistory[key].name = nameInput;
+                                setHistory(newHistory);
+                                await saveHistory(newHistory);
+                                setEditingName(false);
+                              }}>✓</button>
+                              <button className="edit-btn del" onClick={function(){ setNameInput(m.name); setEditingName(false); }}>✕</button>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="member-count">{(m.sessions || []).length}回</span>
+                              <button onClick={function(e){ e.stopPropagation(); setEditingName(true); setNameInput(m.name); }} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:"#9AA0AC",padding:"2px 6px"}}>✏️</button>
+                              <span className={"chevron" + (isOpen ? " open" : "")} onClick={function(){ setOpenMember(isOpen ? null : key); }}>▶</span>
+                            </>
+                          )}
                         </div>
                         {isOpen && (
                           <div className="history-list">
