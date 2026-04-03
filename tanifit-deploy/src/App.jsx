@@ -1724,8 +1724,15 @@ export default function App() {
                   {historyKeys.filter(function(key) {
                     if (!historySearch.trim()) return true;
                     var q = historySearch.trim();
+                    var toHira = function(s){ return s.replace(/[\u30A1-\u30F6]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) - 0x60); }); };
+                    var qH = toHira(q);
                     var m = history[key];
-                    return (m.name && m.name.includes(q)) || (m.member_id && String(m.member_id).includes(q));
+                    // 名前・会員番号・ふりがなで検索
+                    var memberInfo = members.find(function(mem){ return mem.id === String(m.member_id); });
+                    var furigana = memberInfo ? (memberInfo.furigana || "") : "";
+                    return (m.name && m.name.includes(q))
+                      || (m.member_id && String(m.member_id).includes(q))
+                      || (furigana && toHira(furigana).includes(qH));
                   }).map(function(key) {
                     var m = history[key];
                     var isOpen = openMember === key;
