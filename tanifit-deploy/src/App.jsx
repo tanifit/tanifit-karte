@@ -631,6 +631,19 @@ function SuggestCard({ s, history }) {
 
       {showHist && memberHistory.length > 0 && (
         <div style={{margin:"0 18px 12px",padding:"10px 12px",background:"#F9FAFB",border:"1px solid #E4E8EC",borderRadius:6}}>
+          {/* 既往歴 */}
+          {(history[s.member_id] && history[s.member_id].injury) && (
+            <div style={{marginBottom:10,padding:"7px 10px",background:"#FFF5F5",border:"1px solid #F8CCC8",borderRadius:5}}>
+              <span style={{fontSize:10,color:"#E05050",fontWeight:600,marginRight:6}}>🩹 既往歴</span>
+              <span style={{fontSize:11,color:"#C04040"}}>{history[s.member_id].injury}</span>
+            </div>
+          )}
+          {(history[s.member_id] && history[s.member_id].goal) && (
+            <div style={{marginBottom:10,padding:"7px 10px",background:"#FFF8F0",border:"1px solid #FFD8A8",borderRadius:5}}>
+              <span style={{fontSize:10,color:"#F07020",fontWeight:600,marginRight:6}}>🎯 目標</span>
+              <span style={{fontSize:11,color:"#C05010"}}>{history[s.member_id].goal}</span>
+            </div>
+          )}
           {memberHistory.slice(0, 3).map(function(sess, si) {
             return (
               <div key={si} style={{marginBottom: si < memberHistory.length - 1 ? 10 : 0}}>
@@ -705,7 +718,19 @@ function SuggestCard({ s, history }) {
 function MemberRow({ memberKey, m, history, openMember, setOpenMember, openSession, setOpenSession, saveHistory, setHistory }) {
   var [editingName, setEditingName] = React.useState(false);
   var [nameInput, setNameInput] = React.useState(m.name);
+  var [editingProfile, setEditingProfile] = React.useState(false);
+  var [profileDraft, setProfileDraft] = React.useState({ injury: m.injury || "", goal: m.goal || "", memo: m.memo || "" });
   var isOpen = openMember === memberKey;
+
+  async function saveProfile() {
+    var newHistory = JSON.parse(JSON.stringify(history));
+    newHistory[memberKey].injury = profileDraft.injury;
+    newHistory[memberKey].goal = profileDraft.goal;
+    newHistory[memberKey].memo = profileDraft.memo;
+    setHistory(newHistory);
+    await saveHistory(newHistory);
+    setEditingProfile(false);
+  }
 
   return (
     <div className="member-row">
@@ -753,6 +778,53 @@ function MemberRow({ memberKey, m, history, openMember, setOpenMember, openSessi
       </div>
       {isOpen && (
         <div className="history-list">
+          {/* ── プロフィール欄 ── */}
+          <div style={{background:"#F9FAFB",border:"1px solid #E4E8EC",borderRadius:8,padding:"14px 16px",marginBottom:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <span style={{fontSize:10,letterSpacing:2,color:"#9AA0AC",fontWeight:600,textTransform:"uppercase"}}>会員プロフィール</span>
+              {editingProfile ? (
+                <div style={{display:"flex",gap:6}}>
+                  <button className="edit-btn add" onClick={saveProfile}>✓ 保存</button>
+                  <button className="edit-btn del" onClick={function(){ setProfileDraft({injury:m.injury||"",goal:m.goal||"",memo:m.memo||""}); setEditingProfile(false); }}>✕</button>
+                </div>
+              ) : (
+                <button className="edit-btn" onClick={function(){ setEditingProfile(true); }}>✏️ 編集</button>
+              )}
+            </div>
+            {editingProfile ? (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div>
+                  <div style={{fontSize:10,color:"#E05050",fontWeight:600,marginBottom:4,letterSpacing:1}}>🩹 既往歴・痛みのある部位</div>
+                  <textarea value={profileDraft.injury} onChange={function(e){ setProfileDraft(function(p){ return Object.assign({},p,{injury:e.target.value}); }); }} placeholder="例：右膝に古傷あり、腰痛持ち..." style={{minHeight:60,fontSize:12}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:"#F07020",fontWeight:600,marginBottom:4,letterSpacing:1}}>🎯 目標・目的</div>
+                  <textarea value={profileDraft.goal} onChange={function(e){ setProfileDraft(function(p){ return Object.assign({},p,{goal:e.target.value}); }); }} placeholder="例：ダイエット、筋肥大、姿勢改善..." style={{minHeight:60,fontSize:12}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:10,color:"#45BFBF",fontWeight:600,marginBottom:4,letterSpacing:1}}>📝 メモ（趣味・仕事・性格など）</div>
+                  <textarea value={profileDraft.memo} onChange={function(e){ setProfileDraft(function(p){ return Object.assign({},p,{memo:e.target.value}); }); }} placeholder="例：会社員、サーフィンが趣味、几帳面な性格..." style={{minHeight:60,fontSize:12}}/>
+                </div>
+              </div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                <div>
+                  <span style={{fontSize:10,color:"#E05050",fontWeight:600,marginRight:6}}>🩹 既往歴</span>
+                  <span style={{fontSize:12,color:m.injury?"#1A1E26":"#C4C8D0"}}>{m.injury || "未入力"}</span>
+                </div>
+                <div>
+                  <span style={{fontSize:10,color:"#F07020",fontWeight:600,marginRight:6}}>🎯 目標</span>
+                  <span style={{fontSize:12,color:m.goal?"#1A1E26":"#C4C8D0"}}>{m.goal || "未入力"}</span>
+                </div>
+                <div>
+                  <span style={{fontSize:10,color:"#45BFBF",fontWeight:600,marginRight:6}}>📝 メモ</span>
+                  <span style={{fontSize:12,color:m.memo?"#1A1E26":"#C4C8D0"}}>{m.memo || "未入力"}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── セッション履歴 ── */}
           {(m.sessions || []).map(function(s, si) {
             var sk = memberKey + si;
             var isSessionOpen = openSession === sk;
