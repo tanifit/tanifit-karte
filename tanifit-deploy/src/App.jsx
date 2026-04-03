@@ -608,16 +608,19 @@ function ExNameWithImage({ ex }) {
 function SuggestCard({ s, history }) {
   var [showHist, setShowHist] = React.useState(false);
   var memberHistory = history && s.member_id ? (history[s.member_id] || {}).sessions || [] : [];
+  var memberProfile = history && s.member_id ? history[s.member_id] : null;
+  var hasProfileInfo = memberProfile && (memberProfile.injury || memberProfile.goal);
+  var canShowHist = memberHistory.length > 0 || hasProfileInfo;
   return (
     <div className="karte-card">
       <div className="karte-head">
         <div>
-          <div className="karte-name" onClick={memberHistory.length > 0 ? function(){ setShowHist(function(v){ return !v; }); } : undefined}
-            style={{cursor: memberHistory.length > 0 ? "pointer" : "default", display:"flex", alignItems:"center", gap:8}}>
+          <div className="karte-name" onClick={canShowHist ? function(){ setShowHist(function(v){ return !v; }); } : undefined}
+            style={{cursor: canShowHist ? "pointer" : "default", display:"flex", alignItems:"center", gap:8}}>
             {s.name}
-            {memberHistory.length > 0 && (
+            {canShowHist && (
               <span style={{fontSize:10,color:"rgba(255,255,255,0.7)",fontFamily:"'DM Mono',monospace",border:"1px solid rgba(255,255,255,0.3)",borderRadius:3,padding:"1px 6px"}}>
-                {showHist ? "▲" : "履歴 " + memberHistory.length + "回 ▼"}
+                {showHist ? "▲" : (memberHistory.length > 0 ? "履歴 " + memberHistory.length + "回 ▼" : "▼")}
               </span>
             )}
           </div>
@@ -629,38 +632,43 @@ function SuggestCard({ s, history }) {
         </div>
       </div>
 
-      {showHist && memberHistory.length > 0 && (
-        <div style={{margin:"0 18px 12px",padding:"10px 12px",background:"#F9FAFB",border:"1px solid #E4E8EC",borderRadius:6}}>
-          {/* 既往歴 */}
+      {showHist && (
+        <div style={{margin:"0 18px 12px"}}>
+          {/* 既往歴・目標 */}
           {(history[s.member_id] && history[s.member_id].injury) && (
-            <div style={{marginBottom:10,padding:"7px 10px",background:"#FFF5F5",border:"1px solid #F8CCC8",borderRadius:5}}>
+            <div style={{marginBottom:6,padding:"7px 10px",background:"#FFF5F5",border:"1px solid #F8CCC8",borderRadius:5}}>
               <span style={{fontSize:10,color:"#E05050",fontWeight:600,marginRight:6}}>🩹 既往歴</span>
               <span style={{fontSize:11,color:"#C04040"}}>{history[s.member_id].injury}</span>
             </div>
           )}
           {(history[s.member_id] && history[s.member_id].goal) && (
-            <div style={{marginBottom:10,padding:"7px 10px",background:"#FFF8F0",border:"1px solid #FFD8A8",borderRadius:5}}>
+            <div style={{marginBottom:6,padding:"7px 10px",background:"#FFF8F0",border:"1px solid #FFD8A8",borderRadius:5}}>
               <span style={{fontSize:10,color:"#F07020",fontWeight:600,marginRight:6}}>🎯 目標</span>
               <span style={{fontSize:11,color:"#C05010"}}>{history[s.member_id].goal}</span>
             </div>
           )}
-          {memberHistory.slice(0, 3).map(function(sess, si) {
-            return (
-              <div key={si} style={{marginBottom: si < memberHistory.length - 1 ? 10 : 0}}>
-                <div style={{fontSize:10,color:"#F07020",fontFamily:"'DM Mono',monospace",marginBottom:4}}>{sess.date}</div>
-                {(sess.karte.exercises || []).map(function(ex, ei) {
-                  var setStr = (ex.sets || []).map(function(st, k){ return (st.weight != null ? st.weight + "kg" : "—") + "×" + (st.reps != null ? st.reps + "回" : "—"); }).join("  ");
-                  return (
-                    <div key={ei} style={{fontSize:11,color:"#9AA0AC",fontWeight:500,padding:"2px 0", display:"flex", gap:10}}>
-                      <span style={{color:"#888",minWidth:140}}>{ex.name}</span>
-                      <span style={{fontFamily:"'DM Mono',monospace",fontSize:10}}>{setStr}</span>
-                    </div>
-                  );
-                })}
-                {sess.karte.notes && <div style={{fontSize:10,color:"#4a7a4a",marginTop:4}}>📝 {sess.karte.notes}</div>}
-              </div>
-            );
-          })}
+          {/* セッション履歴 */}
+          {memberHistory.length > 0 && (
+            <div style={{padding:"10px 12px",background:"#F9FAFB",border:"1px solid #E4E8EC",borderRadius:6}}>
+              {memberHistory.slice(0, 3).map(function(sess, si) {
+                return (
+                  <div key={si} style={{marginBottom: si < Math.min(memberHistory.length,3) - 1 ? 10 : 0}}>
+                    <div style={{fontSize:10,color:"#F07020",fontFamily:"'DM Mono',monospace",marginBottom:4}}>{sess.date}</div>
+                    {(sess.karte.exercises || []).map(function(ex, ei) {
+                      var setStr = (ex.sets || []).map(function(st, k){ return (st.weight != null ? st.weight + "kg" : "—") + "×" + (st.reps != null ? st.reps + "回" : "—"); }).join("  ");
+                      return (
+                        <div key={ei} style={{fontSize:11,color:"#9AA0AC",fontWeight:500,padding:"2px 0", display:"flex", gap:10}}>
+                          <span style={{color:"#888",minWidth:140}}>{ex.name}</span>
+                          <span style={{fontFamily:"'DM Mono',monospace",fontSize:10}}>{setStr}</span>
+                        </div>
+                      );
+                    })}
+                    {sess.karte.notes && <div style={{fontSize:10,color:"#4a7a4a",marginTop:4}}>📝 {sess.karte.notes}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
