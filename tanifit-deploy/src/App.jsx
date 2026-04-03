@@ -1582,13 +1582,12 @@ export default function App() {
                     var member = slot.id ? members.find(function(m){ return m.id === slot.id; }) : null;
                     return (
                       <div key={idx} style={{marginBottom:8,padding:10,background:slot.id?"#FFFFFF":"#F9FAFB",border:slot.id?"1px solid #E4E8EC":"1px dashed #D0D5DC",borderRadius:5,opacity:slot.id?1:0.45}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:slot.id?8:0}}>
-                          <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:2,color:slot.id?"#F07020":"#C4C8D0",minWidth:18}}>{idx+1}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:slot.id?8:0}}>
                           {slot.id ? (
                             <>
-                              <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"#F07020",background:"#FFF0E6",border:"1px solid #FFCCA0",borderRadius:4,padding:"2px 7px",fontWeight:600}}>#{slot.id}</span>
+                              <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"#F07020",background:"#FFF0E6",border:"1px solid #FFCCA0",borderRadius:4,padding:"2px 7px",fontWeight:600,whiteSpace:"nowrap"}}>#{slot.id}</span>
                               <span
-                                style={{fontSize:13,color:"#1A1E26",fontWeight:600,flex:1,cursor:"pointer",borderBottom:"1px dashed #ccc"}}
+                                style={{fontSize:12,color:"#1A1E26",fontWeight:600,flex:1,cursor:"pointer",borderBottom:"1px dashed #ccc",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}
                                 onClick={function(){ setOpenSlotHistory(openSlotHistory === idx ? null : idx); }}
                               >{member?member.name:"会員#"+slot.id} {openSlotHistory===idx?"▲":"▼"}</span>
                               {member&&member.gender&&<span style={{fontSize:10,color:member.gender==="女"?"#e07090":"#5090cc",border:"1px solid",borderColor:member.gender==="女"?"#602040":"#203060",borderRadius:3,padding:"1px 5px"}}>{member.gender}</span>}
