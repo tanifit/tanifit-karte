@@ -893,6 +893,7 @@ export default function App() {
   var [prepResult, setPrepResult] = useState(null);
   var [prepLoading, setPrepLoading] = useState(false);
   var [prepError, setPrepError] = useState("");
+  var [openSlotHistory, setOpenSlotHistory] = useState(null);
 
   function updateSlotId(idx, val) {
     setPrepSlots(function(prev) {
@@ -1585,7 +1586,11 @@ export default function App() {
                           <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:17,letterSpacing:2,color:slot.id?"#F07020":"#C4C8D0",minWidth:18}}>{idx+1}</div>
                           {slot.id ? (
                             <>
-                              <span style={{fontSize:13,color:"#1A1E26",fontWeight:600,flex:1}}>{member?member.name:"会員#"+slot.id}</span>
+                              <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"#F07020",background:"#FFF0E6",border:"1px solid #FFCCA0",borderRadius:4,padding:"2px 7px",fontWeight:600}}>#{slot.id}</span>
+                              <span
+                                style={{fontSize:13,color:"#1A1E26",fontWeight:600,flex:1,cursor:"pointer",borderBottom:"1px dashed #ccc"}}
+                                onClick={function(){ setOpenSlotHistory(openSlotHistory === idx ? null : idx); }}
+                              >{member?member.name:"会員#"+slot.id} {openSlotHistory===idx?"▲":"▼"}</span>
                               {member&&member.gender&&<span style={{fontSize:10,color:member.gender==="女"?"#e07090":"#5090cc",border:"1px solid",borderColor:member.gender==="女"?"#602040":"#203060",borderRadius:3,padding:"1px 5px"}}>{member.gender}</span>}
                               <div style={{display:"flex",gap:3}}>
                                 {LEVELS.map(function(lv){ return (
@@ -1614,6 +1619,31 @@ export default function App() {
                             })}
                           </div>
                         )}
+                        {slot.id && openSlotHistory === idx && (function(){
+                          var slotHistory = ((history[slot.id] || {}).sessions || []).slice(0, 5);
+                          if (slotHistory.length === 0) return <div style={{fontSize:11,color:"#aaa",marginTop:8,padding:"8px 0"}}>履歴なし</div>;
+                          return (
+                            <div style={{marginTop:8,borderTop:"1px solid #E4E8EC",paddingTop:8}}>
+                              {slotHistory.map(function(sess, si) {
+                                return (
+                                  <div key={si} style={{marginBottom:si<slotHistory.length-1?10:0,paddingBottom:si<slotHistory.length-1?10:0,borderBottom:si<slotHistory.length-1?"1px solid #F4F5F7":"none"}}>
+                                    <div style={{fontSize:10,color:"#F07020",fontFamily:"'DM Mono',monospace",marginBottom:4,fontWeight:600}}>{sess.date}</div>
+                                    {(sess.karte.exercises||[]).map(function(ex,ei){
+                                      var setStr = (ex.sets||[]).map(function(st){ return (st.weight!=null?st.weight+"kg":"—")+"×"+(st.reps!=null?st.reps+"回":"—"); }).join(" / ");
+                                      return (
+                                        <div key={ei} style={{fontSize:11,color:"#5A6270",display:"flex",gap:8,padding:"1px 0"}}>
+                                          <span style={{minWidth:140,fontWeight:500}}>{ex.name}</span>
+                                          <span style={{fontFamily:"'DM Mono',monospace",fontSize:10,color:"#9AA0AC"}}>{setStr}</span>
+                                        </div>
+                                      );
+                                    })}
+                                    {sess.karte.notes && <div style={{fontSize:10,color:"#2A8A5A",marginTop:3}}>📝 {sess.karte.notes}</div>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}
