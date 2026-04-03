@@ -788,6 +788,8 @@ function MemberRow({ memberKey, m, history, openMember, setOpenMember, openSessi
     </div>
   );
 }
+
+function HistoryDetail({ karte, onUpdate, onDelete }) {
   var [editing, setEditing] = React.useState(false);
   var [draft, setDraft] = React.useState(null);
   var [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -1074,12 +1076,11 @@ export default function App() {
   async function saveHistory(newHistory) {
     var db = getDb();
     if (db) {
-      // 変更されたメンバーのみ保存
       for (var mid in newHistory) {
         try { await setDoc(doc(db, "tanifit_history", String(mid)), newHistory[mid]); } catch(e) {}
       }
     } else {
-      await saveHistory(newHistory);
+      try { await localStore.set("tanifit:history", JSON.stringify(newHistory)); } catch(e) {}
     }
   }
 
