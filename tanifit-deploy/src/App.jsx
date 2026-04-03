@@ -925,6 +925,7 @@ export default function App() {
   var [history, setHistory] = useState({});
   var [openMember, setOpenMember] = useState(null);
   var [openSession, setOpenSession] = useState(null);
+  var [historySearch, setHistorySearch] = useState("");
 
   // dateTime is now sessionDateTime (user-editable)
 
@@ -1707,11 +1708,25 @@ export default function App() {
                 <div className="panel-title">会員別カルテ履歴</div>
                 <span style={{fontSize:11,color:"#444"}}>{historyKeys.length}名</span>
               </div>
+              <div style={{padding:"12px 18px 0"}}>
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={function(e){ setHistorySearch(e.target.value); }}
+                  placeholder="名前・会員番号で検索..."
+                  style={{marginBottom:8}}
+                />
+              </div>
               {historyKeys.length === 0 ? (
                 <div className="empty-state">📋 カルテを生成して「履歴に保存」するとここに蓄積されます</div>
               ) : (
                 <div className="member-list">
-                  {historyKeys.map(function(key) {
+                  {historyKeys.filter(function(key) {
+                    if (!historySearch.trim()) return true;
+                    var q = historySearch.trim();
+                    var m = history[key];
+                    return (m.name && m.name.includes(q)) || (m.member_id && String(m.member_id).includes(q));
+                  }).map(function(key) {
                     var m = history[key];
                     var isOpen = openMember === key;
                     return (
