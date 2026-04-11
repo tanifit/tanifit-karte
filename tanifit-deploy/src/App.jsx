@@ -496,7 +496,7 @@ function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
   var cur = editing ? draft : karte;
   return (
     <div className="karte-card">
-      {editing && <div className="edit-mode-banner"><span>✏️ 編集中</span><div style={{display:"flex",gap:6}}><button className="edit-btn add" onClick={saveEdit}>✓ 保存</button><button className="edit-btn del" onClick={cancelEdit}>✕ キャンセル</button></div></div>}
+      {editing && <div className="edit-mode-banner"><span>✏️ 編集中 — 「履歴に保存」で編集内容ごと保存されます</span><div style={{display:"flex",gap:6}}><button className="edit-btn del" onClick={cancelEdit}>✕ キャンセル</button></div></div>}
       <div className="karte-head">
         <div>
           <div className="karte-name">{cur.name}</div>
@@ -554,10 +554,17 @@ function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
       )}
 
       <div className="karte-foot">
-        <button className="btn btn-sm" onClick={onSave} disabled={saved}>{saved ? "✓ 保存済み" : "💾 履歴に保存"}</button>
+        <button className="btn btn-sm" onClick={function(){
+          if (editing) {
+            // 編集中なら編集内容を反映してから保存
+            if (onUpdate) onUpdate(draft);
+            setEditing(false); setDraft(null);
+          }
+          onSave();
+        }} disabled={saved}>{saved ? "✓ 保存済み" : "💾 履歴に保存"}</button>
         {!editing && <button className="btn-ghost btn-sm" onClick={startEdit}>✏️ 編集</button>}
-        <button className="btn-ghost btn-sm" onClick={function() { navigator.clipboard.writeText(karteToText(karte, date)); }}>📋 コピー</button>
-        {email && <a className="btn-ghost btn-sm" href={buildMailtoHref(email, karte, date)}>✉️ メール送信</a>}
+        <button className="btn-ghost btn-sm" onClick={function() { navigator.clipboard.writeText(karteToText(editing ? draft : karte, date)); }}>📋 コピー</button>
+        {email && <a className="btn-ghost btn-sm" href={buildMailtoHref(email, editing ? draft : karte, date)}>✉️ メール送信</a>}
       </div>
     </div>
   );
