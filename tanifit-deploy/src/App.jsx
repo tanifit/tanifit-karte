@@ -558,9 +558,11 @@ function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
           if (editing) {
             // 編集中なら編集内容を反映してから保存
             if (onUpdate) onUpdate(draft);
+            if (onSave) onSave(draft);
             setEditing(false); setDraft(null);
+          } else {
+            onSave();
           }
-          onSave();
         }} disabled={saved}>{saved ? "✓ 保存済み" : "💾 履歴に保存"}</button>
         {!editing && <button className="btn-ghost btn-sm" onClick={startEdit}>✏️ 編集</button>}
         <button className="btn-ghost btn-sm" onClick={function() { navigator.clipboard.writeText(karteToText(editing ? draft : karte, date)); }}>📋 コピー</button>
@@ -1918,7 +1920,7 @@ export default function App() {
                 <div style={{marginTop:28}}>
                   <div className="karte-section-title">生成カルテ — {sessionDateTime}</div>
                   {kartes.map(function(k,i){
-                    return <KarteCard key={i} karte={k} date={sessionDateTime} onSave={function(){ saveToHistory(kartes[i],i); }} saved={!!savedIds[i]} email={getMemberEmail(k)} onUpdate={function(updated){ var next=kartes.slice(); next[i]=updated; setKartes(next); setSavedIds({}); }}/>;
+                    return <KarteCard key={i} karte={k} date={sessionDateTime} onSave={function(overrideKarte){ saveToHistory(overrideKarte || kartes[i], i); }} saved={!!savedIds[i]} email={getMemberEmail(k)} onUpdate={function(updated){ var next=kartes.slice(); next[i]=updated; setKartes(next); setSavedIds({}); }}/>;
                   })}
                   <button className="generate-btn" style={{background:"transparent",border:"1px solid #2a2a2a",color:"#555",fontSize:13,letterSpacing:2}} onClick={generateKarte} disabled={loading}>🔄 再生成</button>
                 </div>
