@@ -449,6 +449,8 @@ function ExerciseList({ exercises, dotClass }) {
 function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
   var [editing, setEditing] = React.useState(false);
   var [draft, setDraft] = React.useState(null);
+  var [dragIndex, setDragIndex] = React.useState(null);
+  var [dragOverIndex, setDragOverIndex] = React.useState(null);
 
   function startEdit() {
     setDraft(JSON.parse(JSON.stringify(karte)));
@@ -493,6 +495,22 @@ function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
     setDraft(d);
   }
 
+  function handleDragStart(ei) {
+    setDragIndex(ei);
+  }
+  function handleDragOver(ei) {
+    if (ei !== dragIndex) setDragOverIndex(ei);
+  }
+  function handleDrop(ei) {
+    if (dragIndex === null || dragIndex === ei) { setDragIndex(null); setDragOverIndex(null); return; }
+    var d = JSON.parse(JSON.stringify(draft));
+    var moved = d.exercises.splice(dragIndex, 1)[0];
+    d.exercises.splice(ei, 0, moved);
+    setDraft(d);
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }
+
   var cur = editing ? draft : karte;
   return (
     <div className="karte-card">
@@ -508,9 +526,18 @@ function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
       {editing ? (
         <div className="exercise-list">
           {(draft.exercises || []).map(function(ex, ei) {
+            var isDragging = dragIndex === ei;
+            var isDragOver = dragOverIndex === ei;
             return (
-              <div className="exercise-item" key={ei} style={{paddingBottom:12}}>
+              <div className="exercise-item" key={ei} style={{paddingBottom:12, opacity: isDragging ? 0.4 : 1, background: isDragOver ? "#FFF0E6" : "transparent", borderRadius: 6, transition: "background 0.15s"}}
+                draggable
+                onDragStart={function(){ handleDragStart(ei); }}
+                onDragOver={function(e){ e.preventDefault(); handleDragOver(ei); }}
+                onDrop={function(){ handleDrop(ei); }}
+                onDragEnd={function(){ setDragIndex(null); setDragOverIndex(null); }}
+              >
                 <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+                  <span style={{cursor:"grab",color:"#C4C8D0",fontSize:16,padding:"0 2px",userSelect:"none"}} title="ドラッグして並び替え">⠿</span>
                   <span className="dot"/>
                   <input className="edit-input ex-name" value={ex.name} onChange={function(e){ setEx(ei,"name",e.target.value); }} placeholder="種目名"/>
                   <button className="edit-btn del" onClick={function(){ delExercise(ei); }}>✕</button>
