@@ -511,6 +511,48 @@ function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
     setDragOverIndex(null);
   }
 
+  // タッチ対応の並び替え
+  var touchStartY = React.useRef(null);
+  var touchDragIndex = React.useRef(null);
+  var longPressTimer = React.useRef(null);
+
+  function handleTouchStartEx(ei, e) {
+    touchDragIndex.current = null;
+    touchStartY.current = e.touches[0].clientY;
+    longPressTimer.current = setTimeout(function() {
+      touchDragIndex.current = ei;
+      setDragIndex(ei);
+      if (navigator.vibrate) navigator.vibrate(40);
+    }, 400);
+  }
+  function handleTouchMoveEx(e) {
+    if (touchDragIndex.current === null) {
+      clearTimeout(longPressTimer.current);
+      return;
+    }
+    e.preventDefault();
+    var y = e.touches[0].clientY;
+    var els = document.querySelectorAll(".ex-drag-item");
+    var overIdx = null;
+    els.forEach(function(el, idx) {
+      var rect = el.getBoundingClientRect();
+      if (y >= rect.top && y <= rect.bottom) overIdx = idx;
+    });
+    if (overIdx !== null && overIdx !== touchDragIndex.current) setDragOverIndex(overIdx);
+  }
+  function handleTouchEndEx() {
+    clearTimeout(longPressTimer.current);
+    if (touchDragIndex.current !== null && dragOverIndex !== null && dragOverIndex !== touchDragIndex.current) {
+      var d = JSON.parse(JSON.stringify(draft));
+      var moved = d.exercises.splice(touchDragIndex.current, 1)[0];
+      d.exercises.splice(dragOverIndex, 0, moved);
+      setDraft(d);
+    }
+    touchDragIndex.current = null;
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }
+
   var cur = editing ? draft : karte;
   return (
     <div className="karte-card">
@@ -529,15 +571,18 @@ function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
             var isDragging = dragIndex === ei;
             var isDragOver = dragOverIndex === ei;
             return (
-              <div className="exercise-item" key={ei} style={{paddingBottom:12, opacity: isDragging ? 0.4 : 1, background: isDragOver ? "#FFF0E6" : "transparent", borderRadius: 6, transition: "background 0.15s"}}
+              <div className="exercise-item ex-drag-item" key={ei} style={{paddingBottom:12, opacity: isDragging ? 0.4 : 1, background: isDragOver ? "#FFF0E6" : "transparent", borderRadius: 6, transition: "background 0.15s"}}
                 draggable
                 onDragStart={function(){ handleDragStart(ei); }}
                 onDragOver={function(e){ e.preventDefault(); handleDragOver(ei); }}
                 onDrop={function(){ handleDrop(ei); }}
                 onDragEnd={function(){ setDragIndex(null); setDragOverIndex(null); }}
+                onTouchStart={function(e){ handleTouchStartEx(ei, e); }}
+                onTouchMove={handleTouchMoveEx}
+                onTouchEnd={handleTouchEndEx}
               >
                 <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-                  <span style={{cursor:"grab",color:"#C4C8D0",fontSize:16,padding:"0 2px",userSelect:"none"}} title="ドラッグして並び替え">⠿</span>
+                  <span style={{cursor:"grab",color: isDragging ? "#F07020" : "#C4C8D0",fontSize:16,padding:"0 4px",userSelect:"none",touchAction:"none"}} title="長押しで並び替え">⠿</span>
                   <span className="dot"/>
                   <input className="edit-input ex-name" value={ex.name} onChange={function(e){ setEx(ei,"name",e.target.value); }} placeholder="種目名"/>
                   <button className="edit-btn del" onClick={function(){ delExercise(ei); }}>✕</button>
