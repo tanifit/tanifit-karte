@@ -510,47 +510,13 @@ function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
     setDragIndex(null);
     setDragOverIndex(null);
   }
-
-  // タッチ対応の並び替え
-  var touchStartY = React.useRef(null);
-  var touchDragIndex = React.useRef(null);
-  var longPressTimer = React.useRef(null);
-
-  function handleTouchStartEx(ei, e) {
-    touchDragIndex.current = null;
-    touchStartY.current = e.touches[0].clientY;
-    longPressTimer.current = setTimeout(function() {
-      touchDragIndex.current = ei;
-      setDragIndex(ei);
-      if (navigator.vibrate) navigator.vibrate(40);
-    }, 400);
-  }
-  function handleTouchMoveEx(e) {
-    if (touchDragIndex.current === null) {
-      clearTimeout(longPressTimer.current);
-      return;
-    }
-    e.preventDefault();
-    var y = e.touches[0].clientY;
-    var els = document.querySelectorAll(".ex-drag-item");
-    var overIdx = null;
-    els.forEach(function(el, idx) {
-      var rect = el.getBoundingClientRect();
-      if (y >= rect.top && y <= rect.bottom) overIdx = idx;
-    });
-    if (overIdx !== null && overIdx !== touchDragIndex.current) setDragOverIndex(overIdx);
-  }
-  function handleTouchEndEx() {
-    clearTimeout(longPressTimer.current);
-    if (touchDragIndex.current !== null && dragOverIndex !== null && dragOverIndex !== touchDragIndex.current) {
-      var d = JSON.parse(JSON.stringify(draft));
-      var moved = d.exercises.splice(touchDragIndex.current, 1)[0];
-      d.exercises.splice(dragOverIndex, 0, moved);
-      setDraft(d);
-    }
-    touchDragIndex.current = null;
-    setDragIndex(null);
-    setDragOverIndex(null);
+  function moveExercise(ei, dir) {
+    var newIdx = ei + dir;
+    if (newIdx < 0 || newIdx >= draft.exercises.length) return;
+    var d = JSON.parse(JSON.stringify(draft));
+    var moved = d.exercises.splice(ei, 1)[0];
+    d.exercises.splice(newIdx, 0, moved);
+    setDraft(d);
   }
 
   var cur = editing ? draft : karte;
@@ -568,21 +534,15 @@ function KarteCard({ karte, date, onSave, saved, email, onUpdate }) {
       {editing ? (
         <div className="exercise-list">
           {(draft.exercises || []).map(function(ex, ei) {
-            var isDragging = dragIndex === ei;
-            var isDragOver = dragOverIndex === ei;
             return (
-              <div className="exercise-item ex-drag-item" key={ei} style={{paddingBottom:12, opacity: isDragging ? 0.4 : 1, background: isDragOver ? "#FFF0E6" : "transparent", borderRadius: 6, transition: "background 0.15s"}}
-                draggable
-                onDragStart={function(){ handleDragStart(ei); }}
-                onDragOver={function(e){ e.preventDefault(); handleDragOver(ei); }}
-                onDrop={function(){ handleDrop(ei); }}
-                onDragEnd={function(){ setDragIndex(null); setDragOverIndex(null); }}
-                onTouchStart={function(e){ handleTouchStartEx(ei, e); }}
-                onTouchMove={handleTouchMoveEx}
-                onTouchEnd={handleTouchEndEx}
-              >
+              <div className="exercise-item" key={ei} style={{paddingBottom:12}}>
                 <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-                  <span style={{cursor:"grab",color: isDragging ? "#F07020" : "#C4C8D0",fontSize:16,padding:"0 4px",userSelect:"none",touchAction:"none"}} title="長押しで並び替え">⠿</span>
+                  <div style={{display:"flex",flexDirection:"column",gap:1}}>
+                    <button onClick={function(){ moveExercise(ei, -1); }} disabled={ei===0}
+                      style={{background:"none",border:"1px solid #E4E8EC",borderRadius:3,color:ei===0?"#E4E8EC":"#9AA0AC",cursor:ei===0?"default":"pointer",fontSize:10,padding:"1px 5px",lineHeight:1}}>▲</button>
+                    <button onClick={function(){ moveExercise(ei, 1); }} disabled={ei===draft.exercises.length-1}
+                      style={{background:"none",border:"1px solid #E4E8EC",borderRadius:3,color:ei===draft.exercises.length-1?"#E4E8EC":"#9AA0AC",cursor:ei===draft.exercises.length-1?"default":"pointer",fontSize:10,padding:"1px 5px",lineHeight:1}}>▼</button>
+                  </div>
                   <span className="dot"/>
                   <input className="edit-input ex-name" value={ex.name} onChange={function(e){ setEx(ei,"name",e.target.value); }} placeholder="種目名"/>
                   <button className="edit-btn del" onClick={function(){ delExercise(ei); }}>✕</button>
